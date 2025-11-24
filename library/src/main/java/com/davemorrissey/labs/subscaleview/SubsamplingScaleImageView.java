@@ -340,6 +340,26 @@ public class SubsamplingScaleImageView extends View {
     }
 
     /**
+     * Set the configuration for the bitmap decoder.
+     * This method is added for compatibility with Tachiyomi extensions/forks.
+     *
+     * @param config The bitmap configuration (e.g. ARGB_8888).
+     */
+    public void setBitmapDecoderConfig(Bitmap.Config config) {
+        setPreferredBitmapConfig(config);
+    }
+
+    /**
+     * Set the configuration for the region decoder.
+     * This method is added for compatibility with Tachiyomi extensions/forks.
+     *
+     * @param config The bitmap configuration (e.g. ARGB_8888).
+     */
+    public void setRegionDecoderConfig(Bitmap.Config config) {
+        setPreferredBitmapConfig(config);
+    }
+
+    /**
      * Set to use a display profile for color management.
      *
      * @param displayProfile Profile to use.
