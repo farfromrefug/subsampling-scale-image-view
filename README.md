@@ -112,6 +112,28 @@ SubsamplingScaleImageView imageView = (SubsamplingScaleImageView)findViewById(id
 imageView.setImage(ImageSource.bitmap(bitmap));
 ```
 
+## High Quality Rendering
+
+To enable high quality rendering (ARGB_8888, dithering, and high quality filtering) which helps with blur, banding, and noise issues:
+
+```java
+// 1. Set the preferred bitmap configuration to ARGB_8888
+SubsamplingScaleImageView.setPreferredBitmapConfig(Bitmap.Config.ARGB_8888);
+
+// 2. Use the SkiaImageRegionDecoder which respects this config and enables quality flags
+imageView.setRegionDecoderClass(SkiaImageRegionDecoder.class);
+```
+
+In Kotlin (e.g., `ReaderPageImageView.kt`):
+
+```kotlin
+init {
+    // Enable high quality decoding
+    SubsamplingScaleImageView.setPreferredBitmapConfig(Bitmap.Config.ARGB_8888)
+    setRegionDecoderClass(SkiaImageRegionDecoder::class.java)
+}
+```
+
 ## Photo credits
 
 * San Martino by Luca Bravo, via [unsplash.com](https://unsplash.com/photos/lWAOc0UuJ-A)
