@@ -2840,7 +2840,7 @@ public class SubsamplingScaleImageView extends View {
         }
     }
 
-    private int tileCacheLimit = 32;
+    private int tileCacheLimit = 12;
 
     public void setTileCacheSize(int size) {
         tileCacheLimit = Math.max(8, size);
