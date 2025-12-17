@@ -28,7 +28,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.davemorrissey.labs.subscaleview.R.styleable;
+import com.davemorrissey.labs.subscaleview.decoder.CompatDecoderFactory;
 import com.davemorrissey.labs.subscaleview.decoder.Decoder;
+import com.davemorrissey.labs.subscaleview.decoder.DecoderFactory;
 import com.davemorrissey.labs.subscaleview.decoder.ImageRegionDecoder;
 import com.davemorrissey.labs.subscaleview.provider.InputProvider;
 
@@ -141,6 +143,13 @@ public class SubsamplingScaleImageView extends View {
     // Optional display profile for CMS
     private static ByteArrayOutputStream displayProfile = new ByteArrayOutputStream();
     private final ReadWriteLock decoderLock = new ReentrantReadWriteLock(true);
+    // Decoder factory
+    private DecoderFactory<? extends ImageRegionDecoder> regionDecoderFactory = new DecoderFactory<ImageRegionDecoder>() {
+        @Override
+        public ImageRegionDecoder make() {
+            return new Decoder(cropBorders, hardwareConfig, displayProfile.toByteArray());
+        }
+    };
     // Current quickscale state
     private final float quickScaleThreshold;
     // Long click handler
@@ -331,6 +340,26 @@ public class SubsamplingScaleImageView extends View {
     }
 
     /**
+     * Set the configuration for the bitmap decoder.
+     * This method is added for compatibility with Tachiyomi extensions/forks.
+     *
+     * @param config The bitmap configuration (e.g. ARGB_8888).
+     */
+    public void setBitmapDecoderConfig(Bitmap.Config config) {
+        setPreferredBitmapConfig(config);
+    }
+
+    /**
+     * Set the configuration for the region decoder.
+     * This method is added for compatibility with Tachiyomi extensions/forks.
+     *
+     * @param config The bitmap configuration (e.g. ARGB_8888).
+     */
+    public void setRegionDecoderConfig(Bitmap.Config config) {
+        setPreferredBitmapConfig(config);
+    }
+
+    /**
      * Set to use a display profile for color management.
      *
      * @param displayProfile Profile to use.
@@ -338,6 +367,31 @@ public class SubsamplingScaleImageView extends View {
     public static void setDisplayProfile(byte[] displayProfile) {
         SubsamplingScaleImageView.displayProfile.reset();
         SubsamplingScaleImageView.displayProfile.write(displayProfile, 0, displayProfile.length);
+    }
+
+    /**
+     * Set the decoder factory to use a custom {@link ImageRegionDecoder}.
+     *
+     * @param regionDecoderFactory Decoder factory.
+     */
+    public void setRegionDecoderFactory(@NonNull DecoderFactory<? extends ImageRegionDecoder> regionDecoderFactory) {
+        if (regionDecoderFactory == null) {
+            throw new IllegalArgumentException("Decoder factory cannot be null");
+        }
+        this.regionDecoderFactory = regionDecoderFactory;
+        reset(true);
+    }
+
+    /**
+     * Set the decoder class to be used for image regions.
+     * @param decoderClass The class of the decoder to use.
+     */
+    public void setRegionDecoderClass(@NonNull Class<? extends ImageRegionDecoder> decoderClass) {
+        if (decoderClass == null) {
+            throw new IllegalArgumentException("Decoder class cannot be null");
+        }
+        this.regionDecoderFactory = new CompatDecoderFactory<>(decoderClass);
+        reset(true);
     }
 
     /**
@@ -2771,7 +2825,7 @@ public class SubsamplingScaleImageView extends View {
                 InputProvider provider = providerRef.get();
                 if (context != null && view != null && provider == view.provider) {
                     view.debug("TilesInitTask.doInBackground");
-                    decoder = new Decoder(view.cropBorders, view.hardwareConfig, view.displayProfile.toByteArray());
+                    decoder = view.regionDecoderFactory.make();
                     Point dimensions = decoder.init(context, provider);
                     int sWidth = dimensions.x;
                     int sHeight = dimensions.y;
@@ -2806,7 +2860,7 @@ public class SubsamplingScaleImageView extends View {
         }
     }
 
-    private int tileCacheLimit = 32;
+    private int tileCacheLimit = 12;
 
     public void setTileCacheSize(int size) {
         tileCacheLimit = Math.max(8, size);
