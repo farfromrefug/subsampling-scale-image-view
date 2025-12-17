@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.library")
     kotlin("android")
@@ -6,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.davemorrissey.labs.subscaleview"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 21
@@ -18,8 +20,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
     kotlinOptions {
+        jvmTarget = "17"
         compileOptions {
             sourceCompatibility = JavaVersion.VERSION_17
             targetCompatibility = JavaVersion.VERSION_17
@@ -29,7 +31,7 @@ android {
 
 dependencies {
     implementation(libs.androidx.annotation)
-    api(libs.image.decoder)
+//    api(libs.image.decoder)
 }
 
 afterEvaluate {

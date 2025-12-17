@@ -1,5 +1,6 @@
 package com.davemorrissey.labs.subscaleview;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
@@ -29,9 +30,9 @@ import androidx.annotation.Nullable;
 
 import com.davemorrissey.labs.subscaleview.R.styleable;
 import com.davemorrissey.labs.subscaleview.decoder.CompatDecoderFactory;
-import com.davemorrissey.labs.subscaleview.decoder.Decoder;
 import com.davemorrissey.labs.subscaleview.decoder.DecoderFactory;
 import com.davemorrissey.labs.subscaleview.decoder.ImageRegionDecoder;
+import com.davemorrissey.labs.subscaleview.decoder.SkiaImageRegionDecoder;
 import com.davemorrissey.labs.subscaleview.provider.InputProvider;
 
 import java.io.ByteArrayOutputStream;
@@ -144,12 +145,7 @@ public class SubsamplingScaleImageView extends View {
     private static ByteArrayOutputStream displayProfile = new ByteArrayOutputStream();
     private final ReadWriteLock decoderLock = new ReentrantReadWriteLock(true);
     // Decoder factory
-    private DecoderFactory<? extends ImageRegionDecoder> regionDecoderFactory = new DecoderFactory<ImageRegionDecoder>() {
-        @Override
-        public ImageRegionDecoder make() {
-            return new Decoder(cropBorders, hardwareConfig, displayProfile.toByteArray());
-        }
-    };
+    private DecoderFactory<? extends ImageRegionDecoder> regionDecoderFactory = new CompatDecoderFactory<ImageRegionDecoder>(SkiaImageRegionDecoder.class);
     // Current quickscale state
     private final float quickScaleThreshold;
     // Long click handler
@@ -1668,7 +1664,7 @@ public class SubsamplingScaleImageView extends View {
     @SuppressWarnings("SuspiciousNameCombination")
     @AnyThread
     private void fileSRect(Rect sRect, Rect target) {
-        ImageRotation rotation = getImageRotation();
+        @SuppressLint("WrongThread") ImageRotation rotation = getImageRotation();
 
         switch (rotation) {
             case ROTATION_0 ->

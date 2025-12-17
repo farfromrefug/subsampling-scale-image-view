@@ -4,7 +4,7 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version = "1.9.23" }
 
 [libraries]
 androidx-annotation = { module = "androidx.annotation:annotation", version = "1.7.1" }
-androidx-appcompat = { module = "androidx.appcompat:appcompat", version = "1.7.0-alpha03" }
-androidx-viewpager = { module = "androidx.viewpager:viewpager", version = "1.1.0-alpha01" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version = "1.7.1" }
+androidx-viewpager = { module = "androidx.viewpager:viewpager", version = "1.1.0" }
 
-image-decoder = { module = "com.github.tachiyomiorg:image-decoder", version = "e08e9be535" }
+#image-decoder = { module = "com.github.tachiyomiorg:image-decoder", version = "e08e9be535" }
