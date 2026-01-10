@@ -1504,6 +1504,19 @@ public class SubsamplingScaleImageView extends View {
      */
     private synchronized void onTilesInited(ImageRegionDecoder decoder, int sWidth, int sHeight) {
         debug("onTilesInited sWidth=%d, sHeight=%d", sWidth, sHeight);
+        
+        // Apply border cropping if enabled
+        Rect contentRect = null;
+        if (cropBorders && decoder != null) {
+            contentRect = decoder.getContentRect();
+            if (contentRect != null) {
+                debug("Border cropping enabled, contentRect=%s", contentRect);
+                // Adjust dimensions to the content area
+                sWidth = contentRect.width();
+                sHeight = contentRect.height();
+            }
+        }
+        
         // If actual dimensions don't match the declared size, reset everything.
         if (this.sWidth > 0 && this.sHeight > 0 && (this.sWidth != sWidth || this.sHeight != sHeight)) {
             reset(false);
@@ -1518,6 +1531,12 @@ public class SubsamplingScaleImageView extends View {
         this.decoder = decoder;
         this.sWidth = sWidth;
         this.sHeight = sHeight;
+        
+        // Store the content rect for use during tile decoding
+        if (contentRect != null) {
+            this.sRegion = contentRect;
+        }
+        
         checkReady();
         debug("maxTile " + maxTileWidth + ", " + maxTileHeight + " view size: " + getWidth() + ", " + getHeight());
         if (!checkImageLoaded() && maxTileWidth > 0 && maxTileWidth != TILE_SIZE_AUTO && maxTileHeight > 0 && maxTileHeight != TILE_SIZE_AUTO && getWidth() > 0 && getHeight() > 0) {
@@ -1586,11 +1605,26 @@ public class SubsamplingScaleImageView extends View {
 
     /**
      * Set border crop of non-filled (white or black) content.
+     * This will take effect for newly loaded images.
      *
      * @param cropBorders Whether to crop image borders.
      */
     public void setCropBorders(boolean cropBorders) {
         this.cropBorders = cropBorders;
+        // Update the decoder factory to pass the cropBorders flag
+        updateRegionDecoderFactory();
+    }
+    
+    /**
+     * Updates the region decoder factory with current settings.
+     * Called internally when settings like cropBorders change.
+     */
+    private void updateRegionDecoderFactory() {
+        // Only update if using the default SkiaImageRegionDecoder
+        if (regionDecoderFactory instanceof CompatDecoderFactory) {
+            Bitmap.Config config = getPreferredBitmapConfig();
+            this.regionDecoderFactory = new CompatDecoderFactory<>(SkiaImageRegionDecoder.class, config, cropBorders);
+        }
     }
 
     /**

@@ -16,14 +16,16 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 /**
  * Default implementation of [ImageRegionDecoder] using Android's [BitmapRegionDecoder].
  * This class processes the [SubsamplingScaleImageView.preferredBitmapConfig]
- * if set.
+ * if set and supports automatic border detection and cropping.
  */
 class SkiaImageRegionDecoder(
-    private val bitmapConfig: Bitmap.Config? = null
+    private val bitmapConfig: Bitmap.Config? = null,
+    private val cropBorders: Boolean = false
 ) : ImageRegionDecoder {
 
     private var decoder: BitmapRegionDecoder? = null
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
+    private var contentRect: Rect? = null
 
     @Synchronized
     override fun init(context: Context, provider: InputProvider): Point {
@@ -36,7 +38,57 @@ class SkiaImageRegionDecoder(
             }
         }
         val d = decoder ?: throw IllegalStateException("BitmapRegionDecoder failed to load")
+        
+        // Perform border detection if enabled
+        if (cropBorders) {
+            contentRect = detectImageBorders(d)
+        }
+        
         return Point(d.width, d.height)
+    }
+
+    /**
+     * Detect borders in the image by sampling a low-resolution version.
+     * This is done once during initialization to minimize performance impact.
+     */
+    private fun detectImageBorders(decoder: BitmapRegionDecoder): Rect? {
+        try {
+            val width = decoder.width
+            val height = decoder.height
+            
+            // Sample the image at a lower resolution for border detection
+            // Use a sample size that gives us roughly 1000-2000 pixels on the longest dimension
+            val sampleSize = maxOf(1, maxOf(width, height) / 1500)
+            
+            val options = BitmapFactory.Options()
+            options.inSampleSize = sampleSize
+            options.inPreferredConfig = Bitmap.Config.RGB_565 // Use less memory for detection
+            
+            // Decode the entire image at low resolution
+            val sampledBitmap = decoder.decodeRegion(
+                Rect(0, 0, width, height),
+                options
+            )
+            
+            if (sampledBitmap != null) {
+                val detectedRect = BorderDetector.detectBorders(sampledBitmap)
+                sampledBitmap.recycle()
+                
+                // Scale the detected rect back to full resolution
+                if (detectedRect != null) {
+                    return Rect(
+                        detectedRect.left * sampleSize,
+                        detectedRect.top * sampleSize,
+                        detectedRect.right * sampleSize,
+                        detectedRect.bottom * sampleSize
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            // If border detection fails, just return null and use full image
+            e.printStackTrace()
+        }
+        return null
     }
 
     override fun decodeRegion(sRect: Rect, sampleSize: Int): Bitmap {
@@ -77,8 +129,11 @@ class SkiaImageRegionDecoder(
         try {
             decoder?.recycle()
             decoder = null
+            contentRect = null
         } finally {
             decoderLock.writeLock().unlock()
         }
     }
+
+    override fun getContentRect(): Rect? = contentRect
 }
