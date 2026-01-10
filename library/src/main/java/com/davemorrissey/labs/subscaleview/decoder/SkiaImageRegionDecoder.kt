@@ -27,6 +27,10 @@ class SkiaImageRegionDecoder(
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
     private var contentRect: Rect? = null
 
+    companion object {
+        private const val MAX_BORDER_DETECTION_DIMENSION = 1500
+    }
+
     @Synchronized
     override fun init(context: Context, provider: InputProvider): Point {
         provider.openStream().use { inputStream ->
@@ -58,7 +62,7 @@ class SkiaImageRegionDecoder(
             
             // Sample the image at a lower resolution for border detection
             // Use a sample size that gives us roughly 1000-2000 pixels on the longest dimension
-            val sampleSize = maxOf(1, maxOf(width, height) / 1500)
+            val sampleSize = maxOf(1, maxOf(width, height) / MAX_BORDER_DETECTION_DIMENSION)
             
             val options = BitmapFactory.Options()
             options.inSampleSize = sampleSize

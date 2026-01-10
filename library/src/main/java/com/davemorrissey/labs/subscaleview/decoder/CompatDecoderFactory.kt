@@ -12,27 +12,48 @@ class CompatDecoderFactory<T> @JvmOverloads constructor(
 
     @Throws(Exception::class)
     override fun make(): T {
-        return when {
-            // Try constructor with both bitmapConfig and cropBorders
-            bitmapConfig != null || cropBorders -> {
-                try {
-                    clazz.getConstructor(
-                        android.graphics.Bitmap.Config::class.java,
-                        Boolean::class.javaPrimitiveType
-                    ).newInstance(bitmapConfig, cropBorders)
-                } catch (e: NoSuchMethodException) {
-                    // Try constructor with just bitmapConfig
-                    try {
-                        clazz.getConstructor(android.graphics.Bitmap.Config::class.java).newInstance(bitmapConfig)
-                    } catch (e2: NoSuchMethodException) {
-                        // Fallback to default constructor
-                        clazz.getDeclaredConstructor().newInstance()
-                    }
-                }
-            }
-            else -> {
-                clazz.getDeclaredConstructor().newInstance()
-            }
+        // Try different constructor signatures in order of preference
+        return tryConstructorWithConfigAndCropBorders()
+            ?: tryConstructorWithConfig()
+            ?: tryDefaultConstructor()
+            ?: throw NoSuchMethodException("No suitable constructor found for ${clazz.name}")
+    }
+    
+    /**
+     * Try to instantiate with constructor(Config, boolean).
+     */
+    private fun tryConstructorWithConfigAndCropBorders(): T? {
+        if (!cropBorders && bitmapConfig == null) return null
+        return try {
+            clazz.getConstructor(
+                android.graphics.Bitmap.Config::class.java,
+                Boolean::class.javaPrimitiveType
+            ).newInstance(bitmapConfig, cropBorders)
+        } catch (e: NoSuchMethodException) {
+            null
+        }
+    }
+    
+    /**
+     * Try to instantiate with constructor(Config).
+     */
+    private fun tryConstructorWithConfig(): T? {
+        if (bitmapConfig == null) return null
+        return try {
+            clazz.getConstructor(android.graphics.Bitmap.Config::class.java).newInstance(bitmapConfig)
+        } catch (e: NoSuchMethodException) {
+            null
+        }
+    }
+    
+    /**
+     * Try to instantiate with default constructor.
+     */
+    private fun tryDefaultConstructor(): T? {
+        return try {
+            clazz.getDeclaredConstructor().newInstance()
+        } catch (e: NoSuchMethodException) {
+            null
         }
     }
 }

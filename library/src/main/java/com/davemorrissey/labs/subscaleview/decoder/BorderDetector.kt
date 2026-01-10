@@ -17,6 +17,13 @@ object BorderDetector {
     private const val FILLED_RATIO_LIMIT = 0.1f // 10% of pixels must be "filled" to detect content
     
     /**
+     * Calculate the filled limit threshold for a given dimension.
+     */
+    private fun calculateFilledLimit(dimension: Int): Int {
+        return (dimension * FILLED_RATIO_LIMIT / 2).roundToInt()
+    }
+    
+    /**
      * Detect borders in a bitmap and return the content rect.
      * This analyzes the edges of the image to find black or white borders
      * and returns a rectangle representing the actual content area.
@@ -97,7 +104,7 @@ object BorderDetector {
      * Find the top border by scanning from top down.
      */
     private fun findBorderTop(pixels: ByteArray, width: Int, height: Int): Int {
-        val filledLimit = (width * FILLED_RATIO_LIMIT / 2).roundToInt()
+        val filledLimit = calculateFilledLimit(width)
         
         // Scan first line to detect dominant color
         var whitePixels = 0
@@ -148,7 +155,7 @@ object BorderDetector {
      * Find the bottom border by scanning from bottom up.
      */
     private fun findBorderBottom(pixels: ByteArray, width: Int, height: Int): Int {
-        val filledLimit = (width * FILLED_RATIO_LIMIT / 2).roundToInt()
+        val filledLimit = calculateFilledLimit(width)
         
         // Scan last line to detect dominant color
         var whitePixels = 0
@@ -201,7 +208,7 @@ object BorderDetector {
      */
     private fun findBorderLeft(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int): Int {
         val effectiveHeight = bottom - top
-        val filledLimit = (effectiveHeight * FILLED_RATIO_LIMIT / 2).roundToInt()
+        val filledLimit = calculateFilledLimit(effectiveHeight)
         
         // Scan first column to detect dominant color
         var whitePixels = 0
@@ -253,7 +260,7 @@ object BorderDetector {
      */
     private fun findBorderRight(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int): Int {
         val effectiveHeight = bottom - top
-        val filledLimit = (effectiveHeight * FILLED_RATIO_LIMIT / 2).roundToInt()
+        val filledLimit = calculateFilledLimit(effectiveHeight)
         
         // Scan last column to detect dominant color
         var whitePixels = 0
