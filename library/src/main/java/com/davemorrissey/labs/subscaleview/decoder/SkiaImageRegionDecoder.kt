@@ -28,7 +28,7 @@ class SkiaImageRegionDecoder(
     private var contentRect: Rect? = null
 
     companion object {
-        private const val MAX_BORDER_DETECTION_DIMENSION = 1500
+        private const val MAX_BORDER_DETECTION_DIMENSION = 200
     }
 
     @Synchronized
