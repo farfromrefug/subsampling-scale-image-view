@@ -9,6 +9,7 @@ import com.davemorrissey.labs.subscaleview.test.R.string
 import com.davemorrissey.labs.subscaleview.test.animation.AnimationActivity
 import com.davemorrissey.labs.subscaleview.test.basicfeatures.BasicFeaturesActivity
 import com.davemorrissey.labs.subscaleview.test.configuration.ConfigurationActivity
+import com.davemorrissey.labs.subscaleview.test.cropborders.CropBordersActivity
 import com.davemorrissey.labs.subscaleview.test.databinding.MainActivityBinding
 import com.davemorrissey.labs.subscaleview.test.eventhandling.EventHandlingActivity
 import com.davemorrissey.labs.subscaleview.test.eventhandlingadvanced.AdvancedEventHandlingActivity
@@ -30,6 +31,9 @@ class MainActivity : AppCompatActivity() {
 
         binding.basicFeatures.setOnClickListener {
             startActivity(BasicFeaturesActivity::class.java)
+        }
+        binding.cropBorders.setOnClickListener {
+            startActivity(CropBordersActivity::class.java)
         }
         binding.imageDisplay.setOnClickListener {
             startActivity(ImageDisplayActivity::class.java)

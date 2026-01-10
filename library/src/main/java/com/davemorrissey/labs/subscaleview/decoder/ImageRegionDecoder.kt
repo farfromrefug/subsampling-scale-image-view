@@ -50,4 +50,12 @@ interface ImageRegionDecoder {
      * resources still in use.
      */
     fun recycle()
+
+    /**
+     * Get the detected content rect if border cropping was performed during initialization.
+     * Returns null if no borders were detected or border detection was not performed.
+     *
+     * @return The content rect, or null if not available.
+     */
+    fun getContentRect(): Rect? = null
 }

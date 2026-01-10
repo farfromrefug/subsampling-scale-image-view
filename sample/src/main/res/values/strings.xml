@@ -33,6 +33,10 @@
         Double tap the image to zoom in to that spot. Double tap again to zoom out.
     </string>
 
+
+    <string name="crop.link">Crop Borders</string>
+    <string name="crop.title">Crop Borders</string>
+
     <string name="display.link">Image display</string>
     <string name="display.title">Image display</string>
     <string name="display.p1.subtitle">Large images</string>

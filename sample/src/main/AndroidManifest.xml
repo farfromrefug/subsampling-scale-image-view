@@ -40,6 +40,9 @@
             android:name=".animation.AnimationActivity"
             android:exported="false" />
         <activity
+            android:name=".cropborders.CropBordersActivity"
+            android:exported="false" />
+        <activity
             android:name=".extension.ExtensionActivity"
             android:exported="false" />
         <activity

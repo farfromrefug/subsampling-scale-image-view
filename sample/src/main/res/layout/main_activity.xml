@@ -23,6 +23,12 @@
                 android:text="@string/basic.link" />
 
             <View style="@style/indexDivider" />
+            <TextView
+                android:id="@+id/cropBorders"
+                style="@style/indexLink"
+                android:text="@string/crop.link" />
+
+            <View style="@style/indexDivider" />
 
             <TextView
                 android:id="@+id/imageDisplay"
