@@ -125,9 +125,11 @@ object BorderDetector {
                 // Mixed fill found, don't crop
                 return 0
             }
-            blackPixels > filledLimit -> ::isWhitePixel
-            else -> ::isBlackPixel
+            blackPixels > filledLimit -> { pixels, w, x, y, threshold -> isWhitePixel(pixels, w, x, y, threshold) }
+            else -> { pixels, w, x, y, threshold -> isBlackPixel(pixels, w, x, y, threshold) }
         }
+        
+        val threshold = if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack
         
         // Scan horizontal lines in search of filled lines
         for (y in 1 until height) {
@@ -135,7 +137,7 @@ object BorderDetector {
             
             x = 0
             while (x < width) {
-                if (detectFunc(pixels, width, x, y, if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack)) {
+                if (detectFunc(pixels, width, x, y, threshold)) {
                     filledCount++
                 }
                 x += 2
@@ -177,9 +179,11 @@ object BorderDetector {
                 // Mixed fill found, don't crop
                 return height
             }
-            blackPixels > filledLimit -> ::isWhitePixel
-            else -> ::isBlackPixel
+            blackPixels > filledLimit -> { pixels, w, x, y, threshold -> isWhitePixel(pixels, w, x, y, threshold) }
+            else -> { pixels, w, x, y, threshold -> isBlackPixel(pixels, w, x, y, threshold) }
         }
+        
+        val threshold = if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack
         
         // Scan horizontal lines in search of filled lines
         for (y in height - 2 downTo 1) {
@@ -187,7 +191,7 @@ object BorderDetector {
             
             x = 0
             while (x < width) {
-                if (detectFunc(pixels, width, x, y, if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack)) {
+                if (detectFunc(pixels, width, x, y, threshold)) {
                     filledCount++
                 }
                 x += 2
@@ -229,9 +233,11 @@ object BorderDetector {
                 // Mixed fill found, don't crop
                 return 0
             }
-            blackPixels > filledLimit -> ::isWhitePixel
-            else -> ::isBlackPixel
+            blackPixels > filledLimit -> { pixels, w, x, y, threshold -> isWhitePixel(pixels, w, x, y, threshold) }
+            else -> { pixels, w, x, y, threshold -> isBlackPixel(pixels, w, x, y, threshold) }
         }
+        
+        val threshold = if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack
         
         // Scan vertical lines in search of filled lines
         for (x in 1 until width) {
@@ -239,7 +245,7 @@ object BorderDetector {
             
             y = top
             while (y < bottom) {
-                if (detectFunc(pixels, width, x, y, if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack)) {
+                if (detectFunc(pixels, width, x, y, threshold)) {
                     filledCount++
                 }
                 y += 2
@@ -282,9 +288,11 @@ object BorderDetector {
                 // Mixed fill found, don't crop
                 return width
             }
-            blackPixels > filledLimit -> ::isWhitePixel
-            else -> ::isBlackPixel
+            blackPixels > filledLimit -> { pixels, w, x, y, threshold -> isWhitePixel(pixels, w, x, y, threshold) }
+            else -> { pixels, w, x, y, threshold -> isBlackPixel(pixels, w, x, y, threshold) }
         }
+        
+        val threshold = if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack
         
         // Scan vertical lines in search of filled lines
         for (x in width - 2 downTo 1) {
@@ -292,7 +300,7 @@ object BorderDetector {
             
             y = top
             while (y < bottom) {
-                if (detectFunc(pixels, width, x, y, if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack)) {
+                if (detectFunc(pixels, width, x, y, threshold)) {
                     filledCount++
                 }
                 y += 2
