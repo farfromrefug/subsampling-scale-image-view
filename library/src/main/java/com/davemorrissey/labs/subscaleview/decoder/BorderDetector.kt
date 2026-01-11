@@ -11,17 +11,11 @@ import kotlin.math.roundToInt
  */
 object BorderDetector {
     
-    // Threshold values for grayscale detection
-    private const val THRESHOLD = 0.95  // Pixels with value < 30 are considered black
-    private const val THRESHOLD_FOR_BLACK = 255.0 * THRESHOLD  // Pixels with value < 30 are considered black
-    private const val THRESHOLD_FOR_WHITE = 255.0 - 255.0 * THRESHOLD // Pixels with value > 225 are considered white
-    private const val FILLED_RATIO_LIMIT = 0.15f // 15% of pixels must be "filled" to detect content
-    
     /**
      * Calculate the filled limit threshold for a given dimension.
      */
-    private fun calculateFilledLimit(dimension: Int): Int {
-        return (dimension * FILLED_RATIO_LIMIT / 2).roundToInt()
+    private fun calculateFilledLimit(dimension: Int, filledRatioLimit: Float): Int {
+        return (dimension * filledRatioLimit / 2).roundToInt()
     }
     
     /**
@@ -30,9 +24,10 @@ object BorderDetector {
      * and returns a rectangle representing the actual content area.
      *
      * @param bitmap The bitmap to analyze
+     * @param config Configuration for border detection parameters
      * @return A Rect representing the content area, or null if borders should not be cropped
      */
-    fun detectBorders(bitmap: Bitmap): Rect? {
+    fun detectBorders(bitmap: Bitmap, config: BorderDetectionConfig = BorderDetectionConfig.DEFAULT): Rect? {
         val width = bitmap.width
         val height = bitmap.height
         
@@ -43,11 +38,15 @@ object BorderDetector {
         // Convert bitmap to grayscale values for efficient processing
         val pixels = extractGrayscalePixels(bitmap)
         
+        // Calculate threshold values from config
+        val thresholdForBlack = 255.0 * config.threshold
+        val thresholdForWhite = 255.0 - 255.0 * config.threshold
+        
         // Detect borders from each edge
-        val top = findBorderTop(pixels, width, height)
-        val bottom = findBorderBottom(pixels, width, height)
-        val left = findBorderLeft(pixels, width, height, top, bottom)
-        val right = findBorderRight(pixels, width, height, top, bottom)
+        val top = findBorderTop(pixels, width, height, thresholdForBlack, thresholdForWhite, config.filledRatioLimit)
+        val bottom = findBorderBottom(pixels, width, height, thresholdForBlack, thresholdForWhite, config.filledRatioLimit)
+        val left = findBorderLeft(pixels, width, height, top, bottom, thresholdForBlack, thresholdForWhite, config.filledRatioLimit)
+        val right = findBorderRight(pixels, width, height, top, bottom, thresholdForBlack, thresholdForWhite, config.filledRatioLimit)
         
         // If no borders detected or borders are the full image, return null
         if (left == 0 && top == 0 && right == width && bottom == height) {
@@ -88,24 +87,24 @@ object BorderDetector {
     /**
      * Check if a pixel is black based on the threshold.
      */
-    private inline fun isBlackPixel(pixels: ByteArray, width: Int, x: Int, y: Int): Boolean {
+    private inline fun isBlackPixel(pixels: ByteArray, width: Int, x: Int, y: Int, thresholdForBlack: Double): Boolean {
         val pixel = pixels[y * width + x].toInt() and 0xFF
-        return pixel < THRESHOLD_FOR_BLACK
+        return pixel < thresholdForBlack
     }
     
     /**
      * Check if a pixel is white based on the threshold.
      */
-    private inline fun isWhitePixel(pixels: ByteArray, width: Int, x: Int, y: Int): Boolean {
+    private inline fun isWhitePixel(pixels: ByteArray, width: Int, x: Int, y: Int, thresholdForWhite: Double): Boolean {
         val pixel = pixels[y * width + x].toInt() and 0xFF
-        return pixel > THRESHOLD_FOR_WHITE
+        return pixel > thresholdForWhite
     }
     
     /**
      * Find the top border by scanning from top down.
      */
-    private fun findBorderTop(pixels: ByteArray, width: Int, height: Int): Int {
-        val filledLimit = calculateFilledLimit(width)
+    private fun findBorderTop(pixels: ByteArray, width: Int, height: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float): Int {
+        val filledLimit = calculateFilledLimit(width, filledRatioLimit)
         
         // Scan first line to detect dominant color
         var whitePixels = 0
@@ -113,22 +112,24 @@ object BorderDetector {
         
         var x = 0
         while (x < width) {
-            if (isBlackPixel(pixels, width, x, 0)) {
+            if (isBlackPixel(pixels, width, x, 0, thresholdForBlack)) {
                 blackPixels++
-            } else if (isWhitePixel(pixels, width, x, 0)) {
+            } else if (isWhitePixel(pixels, width, x, 0, thresholdForWhite)) {
                 whitePixels++
             }
             x += 2
         }
         
-        val detectFunc: (ByteArray, Int, Int, Int) -> Boolean = when {
+        val detectFunc: (ByteArray, Int, Int, Int, Double) -> Boolean = when {
             whitePixels > filledLimit && blackPixels > filledLimit -> {
                 // Mixed fill found, don't crop
                 return 0
             }
-            blackPixels > filledLimit -> ::isWhitePixel
-            else -> ::isBlackPixel
+            blackPixels > filledLimit -> { pixels, w, x, y, threshold -> isWhitePixel(pixels, w, x, y, threshold) }
+            else -> { pixels, w, x, y, threshold -> isBlackPixel(pixels, w, x, y, threshold) }
         }
+        
+        val threshold = if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack
         
         // Scan horizontal lines in search of filled lines
         for (y in 1 until height) {
@@ -136,7 +137,7 @@ object BorderDetector {
             
             x = 0
             while (x < width) {
-                if (detectFunc(pixels, width, x, y)) {
+                if (detectFunc(pixels, width, x, y, threshold)) {
                     filledCount++
                 }
                 x += 2
@@ -155,8 +156,8 @@ object BorderDetector {
     /**
      * Find the bottom border by scanning from bottom up.
      */
-    private fun findBorderBottom(pixels: ByteArray, width: Int, height: Int): Int {
-        val filledLimit = calculateFilledLimit(width)
+    private fun findBorderBottom(pixels: ByteArray, width: Int, height: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float): Int {
+        val filledLimit = calculateFilledLimit(width, filledRatioLimit)
         
         // Scan last line to detect dominant color
         var whitePixels = 0
@@ -165,22 +166,24 @@ object BorderDetector {
         
         var x = 0
         while (x < width) {
-            if (isBlackPixel(pixels, width, x, lastY)) {
+            if (isBlackPixel(pixels, width, x, lastY, thresholdForBlack)) {
                 blackPixels++
-            } else if (isWhitePixel(pixels, width, x, lastY)) {
+            } else if (isWhitePixel(pixels, width, x, lastY, thresholdForWhite)) {
                 whitePixels++
             }
             x += 2
         }
         
-        val detectFunc: (ByteArray, Int, Int, Int) -> Boolean = when {
+        val detectFunc: (ByteArray, Int, Int, Int, Double) -> Boolean = when {
             whitePixels > filledLimit && blackPixels > filledLimit -> {
                 // Mixed fill found, don't crop
                 return height
             }
-            blackPixels > filledLimit -> ::isWhitePixel
-            else -> ::isBlackPixel
+            blackPixels > filledLimit -> { pixels, w, x, y, threshold -> isWhitePixel(pixels, w, x, y, threshold) }
+            else -> { pixels, w, x, y, threshold -> isBlackPixel(pixels, w, x, y, threshold) }
         }
+        
+        val threshold = if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack
         
         // Scan horizontal lines in search of filled lines
         for (y in height - 2 downTo 1) {
@@ -188,7 +191,7 @@ object BorderDetector {
             
             x = 0
             while (x < width) {
-                if (detectFunc(pixels, width, x, y)) {
+                if (detectFunc(pixels, width, x, y, threshold)) {
                     filledCount++
                 }
                 x += 2
@@ -207,9 +210,9 @@ object BorderDetector {
     /**
      * Find the left border by scanning from left to right.
      */
-    private fun findBorderLeft(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int): Int {
+    private fun findBorderLeft(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float): Int {
         val effectiveHeight = bottom - top
-        val filledLimit = calculateFilledLimit(effectiveHeight)
+        val filledLimit = calculateFilledLimit(effectiveHeight, filledRatioLimit)
         
         // Scan first column to detect dominant color
         var whitePixels = 0
@@ -217,22 +220,24 @@ object BorderDetector {
         
         var y = top
         while (y < bottom) {
-            if (isBlackPixel(pixels, width, 0, y)) {
+            if (isBlackPixel(pixels, width, 0, y, thresholdForBlack)) {
                 blackPixels++
-            } else if (isWhitePixel(pixels, width, 0, y)) {
+            } else if (isWhitePixel(pixels, width, 0, y, thresholdForWhite)) {
                 whitePixels++
             }
             y += 2
         }
         
-        val detectFunc: (ByteArray, Int, Int, Int) -> Boolean = when {
+        val detectFunc: (ByteArray, Int, Int, Int, Double) -> Boolean = when {
             whitePixels > filledLimit && blackPixels > filledLimit -> {
                 // Mixed fill found, don't crop
                 return 0
             }
-            blackPixels > filledLimit -> ::isWhitePixel
-            else -> ::isBlackPixel
+            blackPixels > filledLimit -> { pixels, w, x, y, threshold -> isWhitePixel(pixels, w, x, y, threshold) }
+            else -> { pixels, w, x, y, threshold -> isBlackPixel(pixels, w, x, y, threshold) }
         }
+        
+        val threshold = if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack
         
         // Scan vertical lines in search of filled lines
         for (x in 1 until width) {
@@ -240,7 +245,7 @@ object BorderDetector {
             
             y = top
             while (y < bottom) {
-                if (detectFunc(pixels, width, x, y)) {
+                if (detectFunc(pixels, width, x, y, threshold)) {
                     filledCount++
                 }
                 y += 2
@@ -259,9 +264,9 @@ object BorderDetector {
     /**
      * Find the right border by scanning from right to left.
      */
-    private fun findBorderRight(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int): Int {
+    private fun findBorderRight(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float): Int {
         val effectiveHeight = bottom - top
-        val filledLimit = calculateFilledLimit(effectiveHeight)
+        val filledLimit = calculateFilledLimit(effectiveHeight, filledRatioLimit)
         
         // Scan last column to detect dominant color
         var whitePixels = 0
@@ -270,22 +275,24 @@ object BorderDetector {
         
         var y = top
         while (y < bottom) {
-            if (isBlackPixel(pixels, width, lastX, y)) {
+            if (isBlackPixel(pixels, width, lastX, y, thresholdForBlack)) {
                 blackPixels++
-            } else if (isWhitePixel(pixels, width, lastX, y)) {
+            } else if (isWhitePixel(pixels, width, lastX, y, thresholdForWhite)) {
                 whitePixels++
             }
             y += 2
         }
         
-        val detectFunc: (ByteArray, Int, Int, Int) -> Boolean = when {
+        val detectFunc: (ByteArray, Int, Int, Int, Double) -> Boolean = when {
             whitePixels > filledLimit && blackPixels > filledLimit -> {
                 // Mixed fill found, don't crop
                 return width
             }
-            blackPixels > filledLimit -> ::isWhitePixel
-            else -> ::isBlackPixel
+            blackPixels > filledLimit -> { pixels, w, x, y, threshold -> isWhitePixel(pixels, w, x, y, threshold) }
+            else -> { pixels, w, x, y, threshold -> isBlackPixel(pixels, w, x, y, threshold) }
         }
+        
+        val threshold = if (blackPixels > filledLimit) thresholdForWhite else thresholdForBlack
         
         // Scan vertical lines in search of filled lines
         for (x in width - 2 downTo 1) {
@@ -293,7 +300,7 @@ object BorderDetector {
             
             y = top
             while (y < bottom) {
-                if (detectFunc(pixels, width, x, y)) {
+                if (detectFunc(pixels, width, x, y, threshold)) {
                     filledCount++
                 }
                 y += 2
