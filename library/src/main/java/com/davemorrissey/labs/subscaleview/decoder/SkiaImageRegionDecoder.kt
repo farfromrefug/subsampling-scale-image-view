@@ -20,7 +20,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
  */
 class SkiaImageRegionDecoder(
     private val bitmapConfig: Bitmap.Config? = null,
-    private val cropBorders: Boolean = false
+    private val cropBorders: Boolean = false,
+    private val borderDetectionConfig: BorderDetectionConfig = BorderDetectionConfig.DEFAULT
 ) : ImageRegionDecoder {
 
     private var decoder: BitmapRegionDecoder? = null
@@ -28,6 +29,7 @@ class SkiaImageRegionDecoder(
     private var contentRect: Rect? = null
 
     companion object {
+        // Kept for backward compatibility but now configurable via BorderDetectionConfig
         private const val MAX_BORDER_DETECTION_DIMENSION = 500
     }
 
@@ -62,7 +64,7 @@ class SkiaImageRegionDecoder(
             
             // Sample the image at a lower resolution for border detection
             // Use a sample size that gives us roughly 1000-2000 pixels on the longest dimension
-            val sampleSize = maxOf(1, maxOf(width, height) / MAX_BORDER_DETECTION_DIMENSION)
+            val sampleSize = maxOf(1, maxOf(width, height) / borderDetectionConfig.maxBorderDetectionDimension)
             
             val options = BitmapFactory.Options()
             options.inSampleSize = sampleSize
@@ -75,7 +77,7 @@ class SkiaImageRegionDecoder(
             )
             
             if (sampledBitmap != null) {
-                val detectedRect = BorderDetector.detectBorders(sampledBitmap)
+                val detectedRect = BorderDetector.detectBorders(sampledBitmap, borderDetectionConfig)
                 sampledBitmap.recycle()
                 
                 // Scale the detected rect back to full resolution

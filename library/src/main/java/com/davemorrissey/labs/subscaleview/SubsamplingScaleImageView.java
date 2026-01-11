@@ -29,6 +29,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.davemorrissey.labs.subscaleview.R.styleable;
+import com.davemorrissey.labs.subscaleview.decoder.BorderDetectionConfig;
 import com.davemorrissey.labs.subscaleview.decoder.CompatDecoderFactory;
 import com.davemorrissey.labs.subscaleview.decoder.DecoderFactory;
 import com.davemorrissey.labs.subscaleview.decoder.ImageRegionDecoder;
@@ -176,6 +177,8 @@ public class SubsamplingScaleImageView extends View {
     private int minimumScaleType = SCALE_TYPE_CENTER_INSIDE;
     // Whether to crop borders.
     private boolean cropBorders = false;
+    // Configuration for border detection
+    private BorderDetectionConfig borderDetectionConfig = BorderDetectionConfig.DEFAULT;
     // Whether to decode to hardware bitmap
     private boolean hardwareConfig = true;
     private int maxTileWidth = TILE_SIZE_AUTO;
@@ -1616,6 +1619,73 @@ public class SubsamplingScaleImageView extends View {
     }
     
     /**
+     * Set the border detection configuration.
+     * This allows customization of the border detection algorithm parameters.
+     * This will take effect for newly loaded images.
+     *
+     * @param config Border detection configuration
+     */
+    public void setBorderDetectionConfig(@NonNull BorderDetectionConfig config) {
+        this.borderDetectionConfig = config;
+        updateRegionDecoderFactory();
+    }
+    
+    /**
+     * Get the current border detection configuration.
+     *
+     * @return Current border detection configuration
+     */
+    @NonNull
+    public BorderDetectionConfig getBorderDetectionConfig() {
+        return borderDetectionConfig;
+    }
+    
+    /**
+     * Convenience method to set the maximum border detection dimension.
+     * This will take effect for newly loaded images.
+     *
+     * @param maxBorderDetectionDimension Maximum dimension for border detection sampling
+     */
+    public void setMaxBorderDetectionDimension(int maxBorderDetectionDimension) {
+        this.borderDetectionConfig = new BorderDetectionConfig(
+            maxBorderDetectionDimension,
+            borderDetectionConfig.getThreshold(),
+            borderDetectionConfig.getFilledRatioLimit()
+        );
+        updateRegionDecoderFactory();
+    }
+    
+    /**
+     * Convenience method to set the border detection threshold.
+     * This will take effect for newly loaded images.
+     *
+     * @param threshold Threshold for grayscale detection (0.0 to 1.0)
+     */
+    public void setBorderDetectionThreshold(double threshold) {
+        this.borderDetectionConfig = new BorderDetectionConfig(
+            borderDetectionConfig.getMaxBorderDetectionDimension(),
+            threshold,
+            borderDetectionConfig.getFilledRatioLimit()
+        );
+        updateRegionDecoderFactory();
+    }
+    
+    /**
+     * Convenience method to set the filled ratio limit.
+     * This will take effect for newly loaded images.
+     *
+     * @param filledRatioLimit Ratio of pixels that must be filled to detect content (0.0 to 1.0)
+     */
+    public void setBorderDetectionFilledRatioLimit(float filledRatioLimit) {
+        this.borderDetectionConfig = new BorderDetectionConfig(
+            borderDetectionConfig.getMaxBorderDetectionDimension(),
+            borderDetectionConfig.getThreshold(),
+            filledRatioLimit
+        );
+        updateRegionDecoderFactory();
+    }
+    
+    /**
      * Updates the region decoder factory with current settings.
      * Called internally when settings like cropBorders change.
      */
@@ -1623,7 +1693,7 @@ public class SubsamplingScaleImageView extends View {
         // Only update if using the default SkiaImageRegionDecoder
         if (regionDecoderFactory instanceof CompatDecoderFactory) {
             Bitmap.Config config = getPreferredBitmapConfig();
-            this.regionDecoderFactory = new CompatDecoderFactory<>(SkiaImageRegionDecoder.class, config, cropBorders);
+            this.regionDecoderFactory = new CompatDecoderFactory<>(SkiaImageRegionDecoder.class, config, cropBorders, borderDetectionConfig);
         }
     }
 

@@ -7,16 +7,33 @@ package com.davemorrissey.labs.subscaleview.decoder
 class CompatDecoderFactory<T> @JvmOverloads constructor(
     private val clazz: Class<out T>,
     private val bitmapConfig: android.graphics.Bitmap.Config? = null,
-    private val cropBorders: Boolean = false
+    private val cropBorders: Boolean = false,
+    private val borderDetectionConfig: BorderDetectionConfig = BorderDetectionConfig.DEFAULT
 ) : DecoderFactory<T> {
 
     @Throws(Exception::class)
     override fun make(): T {
         // Try different constructor signatures in order of preference
-        return tryConstructorWithConfigAndCropBorders()
+        return tryConstructorWithConfigCropAndBorderConfig()
+            ?: tryConstructorWithConfigAndCropBorders()
             ?: tryConstructorWithConfig()
             ?: tryDefaultConstructor()
             ?: throw NoSuchMethodException("No suitable constructor found for ${clazz.name}")
+    }
+    
+    /**
+     * Try to instantiate with constructor(Config, boolean, BorderDetectionConfig).
+     */
+    private fun tryConstructorWithConfigCropAndBorderConfig(): T? {
+        return try {
+            clazz.getConstructor(
+                android.graphics.Bitmap.Config::class.java,
+                Boolean::class.javaPrimitiveType,
+                BorderDetectionConfig::class.java
+            ).newInstance(bitmapConfig, cropBorders, borderDetectionConfig)
+        } catch (e: NoSuchMethodException) {
+            null
+        }
     }
     
     /**
