@@ -1645,8 +1645,12 @@ public class SubsamplingScaleImageView extends View {
      * This will take effect for newly loaded images.
      *
      * @param maxBorderDetectionDimension Maximum dimension for border detection sampling
+     * @throws IllegalArgumentException if maxBorderDetectionDimension is not positive
      */
     public void setMaxBorderDetectionDimension(int maxBorderDetectionDimension) {
+        if (maxBorderDetectionDimension <= 0) {
+            throw new IllegalArgumentException("maxBorderDetectionDimension must be positive, got: " + maxBorderDetectionDimension);
+        }
         this.borderDetectionConfig = new BorderDetectionConfig(
             maxBorderDetectionDimension,
             borderDetectionConfig.getThreshold(),
@@ -1660,8 +1664,12 @@ public class SubsamplingScaleImageView extends View {
      * This will take effect for newly loaded images.
      *
      * @param threshold Threshold for grayscale detection (0.0 to 1.0)
+     * @throws IllegalArgumentException if threshold is not in range [0.0, 1.0]
      */
     public void setBorderDetectionThreshold(double threshold) {
+        if (threshold < 0.0 || threshold > 1.0) {
+            throw new IllegalArgumentException("threshold must be between 0.0 and 1.0, got: " + threshold);
+        }
         this.borderDetectionConfig = new BorderDetectionConfig(
             borderDetectionConfig.getMaxBorderDetectionDimension(),
             threshold,
@@ -1675,8 +1683,12 @@ public class SubsamplingScaleImageView extends View {
      * This will take effect for newly loaded images.
      *
      * @param filledRatioLimit Ratio of pixels that must be filled to detect content (0.0 to 1.0)
+     * @throws IllegalArgumentException if filledRatioLimit is not in range [0.0, 1.0]
      */
     public void setBorderDetectionFilledRatioLimit(float filledRatioLimit) {
+        if (filledRatioLimit < 0.0f || filledRatioLimit > 1.0f) {
+            throw new IllegalArgumentException("filledRatioLimit must be between 0.0 and 1.0, got: " + filledRatioLimit);
+        }
         this.borderDetectionConfig = new BorderDetectionConfig(
             borderDetectionConfig.getMaxBorderDetectionDimension(),
             borderDetectionConfig.getThreshold(),

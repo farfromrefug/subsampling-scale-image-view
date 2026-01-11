@@ -28,11 +28,6 @@ class SkiaImageRegionDecoder(
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
     private var contentRect: Rect? = null
 
-    companion object {
-        // Kept for backward compatibility but now configurable via BorderDetectionConfig
-        private const val MAX_BORDER_DETECTION_DIMENSION = 500
-    }
-
     @Synchronized
     override fun init(context: Context, provider: InputProvider): Point {
         provider.openStream().use { inputStream ->

@@ -40,7 +40,6 @@ class CompatDecoderFactory<T> @JvmOverloads constructor(
      * Try to instantiate with constructor(Config, boolean).
      */
     private fun tryConstructorWithConfigAndCropBorders(): T? {
-        if (!cropBorders && bitmapConfig == null) return null
         return try {
             clazz.getConstructor(
                 android.graphics.Bitmap.Config::class.java,
