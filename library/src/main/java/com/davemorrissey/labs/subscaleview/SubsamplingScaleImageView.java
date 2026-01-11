@@ -111,6 +111,9 @@ public class SubsamplingScaleImageView extends View {
     public static final int SCALE_TYPE_FIT_WIDTH = 3;
     public static final int SCALE_TYPE_FIT_HEIGHT = 4;
     public static final int SCALE_TYPE_ORIGINAL_SIZE = 5;
+    /**
+     * Scale the image so that both dimensions of the image will be equal to or less than the corresponding dimension of the view. The image is then centered in the view. Behaves the same as {@link #SCALE_TYPE_CENTER_INSIDE}.
+     */
     public static final int SCALE_TYPE_SMART_FIT = 6;
     /**
      * Scale the image so that both dimensions of the image will be equal to or less than the maxScale and equal to or larger than minScale. The image is then centered in the view.
