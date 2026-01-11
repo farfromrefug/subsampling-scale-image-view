@@ -12,10 +12,10 @@ import kotlin.math.roundToInt
 object BorderDetector {
     
     // Threshold values for grayscale detection
-    private const val THRESHOLD = 0.75  // Pixels with value < 30 are considered black
+    private const val THRESHOLD = 0.95  // Pixels with value < 30 are considered black
     private const val THRESHOLD_FOR_BLACK = 255.0 * THRESHOLD  // Pixels with value < 30 are considered black
     private const val THRESHOLD_FOR_WHITE = 255.0 - 255.0 * THRESHOLD // Pixels with value > 225 are considered white
-    private const val FILLED_RATIO_LIMIT = 0.25f // 25% of pixels must be "filled" to detect content
+    private const val FILLED_RATIO_LIMIT = 0.15f // 15% of pixels must be "filled" to detect content
     
     /**
      * Calculate the filled limit threshold for a given dimension.
