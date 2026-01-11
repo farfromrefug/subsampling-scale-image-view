@@ -1617,7 +1617,20 @@ public class SubsamplingScaleImageView extends View {
         // Update the decoder factory to pass the cropBorders flag
         updateRegionDecoderFactory();
     }
-    
+
+    /**
+     * Set border crop of non-filled (white or black) content.
+     * This will take effect for newly loaded images.
+     *
+     * @param cropBorders Whether to crop image borders.
+     */
+    public void setCropBorders(boolean cropBorders, @NonNull BorderDetectionConfig config) {
+        this.cropBorders = cropBorders;
+        this.borderDetectionConfig = config;
+        // Update the decoder factory to pass the cropBorders flag
+        updateRegionDecoderFactory();
+    }
+
     /**
      * Set the border detection configuration.
      * This allows customization of the border detection algorithm parameters.

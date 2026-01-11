@@ -48,7 +48,7 @@ data class BorderDetectionConfig(
         /**
          * Default configuration values.
          */
-        @JvmStatic
-        val DEFAULT = BorderDetectionConfig()
+        @JvmField
+        var DEFAULT: BorderDetectionConfig = BorderDetectionConfig()
     }
 }
