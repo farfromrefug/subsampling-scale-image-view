@@ -111,6 +111,9 @@ public class SubsamplingScaleImageView extends View {
     public static final int SCALE_TYPE_FIT_WIDTH = 3;
     public static final int SCALE_TYPE_FIT_HEIGHT = 4;
     public static final int SCALE_TYPE_ORIGINAL_SIZE = 5;
+    /**
+     * Scale the image so that both dimensions of the image will be equal to or less than the corresponding dimension of the view. The image is then centered in the view. Behaves the same as {@link #SCALE_TYPE_CENTER_INSIDE}.
+     */
     public static final int SCALE_TYPE_SMART_FIT = 6;
     /**
      * Scale the image so that both dimensions of the image will be equal to or less than the maxScale and equal to or larger than minScale. The image is then centered in the view.
@@ -2105,13 +2108,9 @@ public class SubsamplingScaleImageView extends View {
             case SCALE_TYPE_ORIGINAL_SIZE:
                 return 1;
             case SCALE_TYPE_SMART_FIT:
-                if (sHeight > sWidth) {
-                    // Fit to width
-                    return (getWidth() - hPadding) / (float) sWidth;
-                } else {
-                    // Fit to height
-                    return (getHeight() - vPadding) / (float) sHeight;
-                }
+                // Always ensure the full image is visible by using the minimum scale
+                // that fits both dimensions within the view, just like CENTER_INSIDE
+                return Math.min((getWidth() - hPadding) / (float) sWidth, (getHeight() - vPadding) / (float) sHeight);
             case SCALE_TYPE_CUSTOM:
                 return minScale;
         }
