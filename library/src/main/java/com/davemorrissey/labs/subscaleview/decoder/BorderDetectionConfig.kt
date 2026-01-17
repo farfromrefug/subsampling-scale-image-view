@@ -7,6 +7,8 @@ package com.davemorrissey.labs.subscaleview.decoder
  * @param maxBorderDetectionDimension Maximum dimension for the sampled bitmap (must be positive)
  * @param threshold Threshold for grayscale detection (must be between 0.0 and 1.0)
  * @param filledRatioLimit Ratio of pixels that must be "filled" to detect content (must be between 0.0 and 1.0)
+ * @param cropOnlyWhite When true, only crop white backgrounds (not black)
+ * @param maxCropPercentage Maximum percentage of dimension to crop (0.0 to 1.0), null for unlimited
  * @throws IllegalArgumentException if any parameter is outside valid range
  */
 data class BorderDetectionConfig(
@@ -30,7 +32,23 @@ data class BorderDetectionConfig(
      * Lower values detect borders more aggressively.
      * Default: 0.15 (15%)
      */
-    val filledRatioLimit: Float = 0.15f
+    val filledRatioLimit: Float = 0.15f,
+    
+    /**
+     * When true, only detect and crop white backgrounds (not black).
+     * This is useful for documents or images where you only want to remove white borders.
+     * Default: false (detect both black and white)
+     */
+    val cropOnlyWhite: Boolean = false,
+    
+    /**
+     * Maximum percentage of width/height that can be cropped for any dimension (0.0 to 1.0).
+     * If the detected border exceeds this percentage, no cropping is applied for that dimension.
+     * This prevents cropping of cover pages or images with centered content on white backgrounds.
+     * Example: 0.3 means at most 30% can be cropped from any edge.
+     * Default: null (unlimited cropping)
+     */
+    val maxCropPercentage: Float? = null
 ) {
     init {
         require(maxBorderDetectionDimension > 0) {
@@ -41,6 +59,11 @@ data class BorderDetectionConfig(
         }
         require(filledRatioLimit in 0.0f..1.0f) {
             "filledRatioLimit must be between 0.0 and 1.0, got: $filledRatioLimit"
+        }
+        if (maxCropPercentage != null) {
+            require(maxCropPercentage in 0.0f..1.0f) {
+                "maxCropPercentage must be between 0.0 and 1.0, got: $maxCropPercentage"
+            }
         }
     }
     

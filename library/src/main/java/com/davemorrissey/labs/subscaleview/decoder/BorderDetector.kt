@@ -43,10 +43,40 @@ object BorderDetector {
         val thresholdForWhite = 255.0 - 255.0 * config.threshold
         
         // Detect borders from each edge
-        val top = findBorderTop(pixels, width, height, thresholdForBlack, thresholdForWhite, config.filledRatioLimit)
-        val bottom = findBorderBottom(pixels, width, height, thresholdForBlack, thresholdForWhite, config.filledRatioLimit)
-        val left = findBorderLeft(pixels, width, height, top, bottom, thresholdForBlack, thresholdForWhite, config.filledRatioLimit)
-        val right = findBorderRight(pixels, width, height, top, bottom, thresholdForBlack, thresholdForWhite, config.filledRatioLimit)
+        val top = findBorderTop(pixels, width, height, thresholdForBlack, thresholdForWhite, config.filledRatioLimit, config.cropOnlyWhite)
+        val bottom = findBorderBottom(pixels, width, height, thresholdForBlack, thresholdForWhite, config.filledRatioLimit, config.cropOnlyWhite)
+        val left = findBorderLeft(pixels, width, height, top, bottom, thresholdForBlack, thresholdForWhite, config.filledRatioLimit, config.cropOnlyWhite)
+        val right = findBorderRight(pixels, width, height, top, bottom, thresholdForBlack, thresholdForWhite, config.filledRatioLimit, config.cropOnlyWhite)
+        
+        // Check if crop percentage limits are exceeded
+        if (config.maxCropPercentage != null) {
+            val maxCropPixelsWidth = (width * config.maxCropPercentage).toInt()
+            val maxCropPixelsHeight = (height * config.maxCropPercentage).toInt()
+            
+            // Check each dimension independently
+            val leftCrop = left
+            val rightCrop = width - right
+            val topCrop = top
+            val bottomCrop = height - bottom
+            
+            // If any dimension exceeds the limit, don't crop that dimension
+            val finalLeft = if (leftCrop > maxCropPixelsWidth) 0 else left
+            val finalRight = if (rightCrop > maxCropPixelsWidth) width else right
+            val finalTop = if (topCrop > maxCropPixelsHeight) 0 else top
+            val finalBottom = if (bottomCrop > maxCropPixelsHeight) height else bottom
+            
+            // If no borders detected after applying limits, return null
+            if (finalLeft == 0 && finalTop == 0 && finalRight == width && finalBottom == height) {
+                return null
+            }
+            
+            // Ensure valid rectangle
+            if (finalRight <= finalLeft || finalBottom <= finalTop) {
+                return null
+            }
+            
+            return Rect(finalLeft, finalTop, finalRight, finalBottom)
+        }
         
         // If no borders detected or borders are the full image, return null
         if (left == 0 && top == 0 && right == width && bottom == height) {
@@ -103,7 +133,7 @@ object BorderDetector {
     /**
      * Find the top border by scanning from top down.
      */
-    private fun findBorderTop(pixels: ByteArray, width: Int, height: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float): Int {
+    private fun findBorderTop(pixels: ByteArray, width: Int, height: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float, cropOnlyWhite: Boolean): Int {
         val filledLimit = calculateFilledLimit(width, filledRatioLimit)
         
         // Scan first line to detect dominant color
@@ -118,6 +148,32 @@ object BorderDetector {
                 whitePixels++
             }
             x += 2
+        }
+        
+        // If cropOnlyWhite is true, only detect white borders
+        if (cropOnlyWhite) {
+            if (whitePixels <= filledLimit) {
+                // Not enough white pixels, don't crop
+                return 0
+            }
+            // Detect when we hit non-white (black) content
+            val threshold = thresholdForWhite
+            for (y in 1 until height) {
+                var filledCount = 0
+                
+                x = 0
+                while (x < width) {
+                    if (isBlackPixel(pixels, width, x, y, thresholdForBlack)) {
+                        filledCount++
+                    }
+                    x += 2
+                }
+                
+                if (filledCount > filledLimit) {
+                    return y
+                }
+            }
+            return 0
         }
         
         val detectFunc: (ByteArray, Int, Int, Int, Double) -> Boolean = when {
@@ -156,7 +212,7 @@ object BorderDetector {
     /**
      * Find the bottom border by scanning from bottom up.
      */
-    private fun findBorderBottom(pixels: ByteArray, width: Int, height: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float): Int {
+    private fun findBorderBottom(pixels: ByteArray, width: Int, height: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float, cropOnlyWhite: Boolean): Int {
         val filledLimit = calculateFilledLimit(width, filledRatioLimit)
         
         // Scan last line to detect dominant color
@@ -172,6 +228,32 @@ object BorderDetector {
                 whitePixels++
             }
             x += 2
+        }
+        
+        // If cropOnlyWhite is true, only detect white borders
+        if (cropOnlyWhite) {
+            if (whitePixels <= filledLimit) {
+                // Not enough white pixels, don't crop
+                return height
+            }
+            // Detect when we hit non-white (black) content
+            val threshold = thresholdForWhite
+            for (y in height - 2 downTo 1) {
+                var filledCount = 0
+                
+                x = 0
+                while (x < width) {
+                    if (isBlackPixel(pixels, width, x, y, thresholdForBlack)) {
+                        filledCount++
+                    }
+                    x += 2
+                }
+                
+                if (filledCount > filledLimit) {
+                    return y + 1
+                }
+            }
+            return height
         }
         
         val detectFunc: (ByteArray, Int, Int, Int, Double) -> Boolean = when {
@@ -210,7 +292,7 @@ object BorderDetector {
     /**
      * Find the left border by scanning from left to right.
      */
-    private fun findBorderLeft(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float): Int {
+    private fun findBorderLeft(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float, cropOnlyWhite: Boolean): Int {
         val effectiveHeight = bottom - top
         val filledLimit = calculateFilledLimit(effectiveHeight, filledRatioLimit)
         
@@ -226,6 +308,32 @@ object BorderDetector {
                 whitePixels++
             }
             y += 2
+        }
+        
+        // If cropOnlyWhite is true, only detect white borders
+        if (cropOnlyWhite) {
+            if (whitePixels <= filledLimit) {
+                // Not enough white pixels, don't crop
+                return 0
+            }
+            // Detect when we hit non-white (black) content
+            val threshold = thresholdForWhite
+            for (x in 1 until width) {
+                var filledCount = 0
+                
+                y = top
+                while (y < bottom) {
+                    if (isBlackPixel(pixels, width, x, y, thresholdForBlack)) {
+                        filledCount++
+                    }
+                    y += 2
+                }
+                
+                if (filledCount > filledLimit) {
+                    return x
+                }
+            }
+            return 0
         }
         
         val detectFunc: (ByteArray, Int, Int, Int, Double) -> Boolean = when {
@@ -264,7 +372,7 @@ object BorderDetector {
     /**
      * Find the right border by scanning from right to left.
      */
-    private fun findBorderRight(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float): Int {
+    private fun findBorderRight(pixels: ByteArray, width: Int, height: Int, top: Int, bottom: Int, thresholdForBlack: Double, thresholdForWhite: Double, filledRatioLimit: Float, cropOnlyWhite: Boolean): Int {
         val effectiveHeight = bottom - top
         val filledLimit = calculateFilledLimit(effectiveHeight, filledRatioLimit)
         
@@ -281,6 +389,32 @@ object BorderDetector {
                 whitePixels++
             }
             y += 2
+        }
+        
+        // If cropOnlyWhite is true, only detect white borders
+        if (cropOnlyWhite) {
+            if (whitePixels <= filledLimit) {
+                // Not enough white pixels, don't crop
+                return width
+            }
+            // Detect when we hit non-white (black) content
+            val threshold = thresholdForWhite
+            for (x in width - 2 downTo 1) {
+                var filledCount = 0
+                
+                y = top
+                while (y < bottom) {
+                    if (isBlackPixel(pixels, width, x, y, thresholdForBlack)) {
+                        filledCount++
+                    }
+                    y += 2
+                }
+                
+                if (filledCount > filledLimit) {
+                    return x + 1
+                }
+            }
+            return width
         }
         
         val detectFunc: (ByteArray, Int, Int, Int, Double) -> Boolean = when {
