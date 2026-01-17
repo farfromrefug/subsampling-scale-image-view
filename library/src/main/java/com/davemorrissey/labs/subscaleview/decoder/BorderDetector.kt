@@ -157,7 +157,6 @@ object BorderDetector {
                 return 0
             }
             // Detect when we hit non-white (black) content
-            val threshold = thresholdForWhite
             for (y in 1 until height) {
                 var filledCount = 0
                 
@@ -237,7 +236,6 @@ object BorderDetector {
                 return height
             }
             // Detect when we hit non-white (black) content
-            val threshold = thresholdForWhite
             for (y in height - 2 downTo 1) {
                 var filledCount = 0
                 
@@ -317,7 +315,6 @@ object BorderDetector {
                 return 0
             }
             // Detect when we hit non-white (black) content
-            val threshold = thresholdForWhite
             for (x in 1 until width) {
                 var filledCount = 0
                 
@@ -398,7 +395,6 @@ object BorderDetector {
                 return width
             }
             // Detect when we hit non-white (black) content
-            val threshold = thresholdForWhite
             for (x in width - 2 downTo 1) {
                 var filledCount = 0
                 
