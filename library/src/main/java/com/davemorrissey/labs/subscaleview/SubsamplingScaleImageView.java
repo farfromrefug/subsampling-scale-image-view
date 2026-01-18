@@ -1670,7 +1670,9 @@ public class SubsamplingScaleImageView extends View {
         this.borderDetectionConfig = new BorderDetectionConfig(
             maxBorderDetectionDimension,
             borderDetectionConfig.getThreshold(),
-            borderDetectionConfig.getFilledRatioLimit()
+            borderDetectionConfig.getFilledRatioLimit(),
+            borderDetectionConfig.getCropOnlyWhite(),
+            borderDetectionConfig.getMaxCropPercentage()
         );
         updateRegionDecoderFactory();
     }
@@ -1689,7 +1691,9 @@ public class SubsamplingScaleImageView extends View {
         this.borderDetectionConfig = new BorderDetectionConfig(
             borderDetectionConfig.getMaxBorderDetectionDimension(),
             threshold,
-            borderDetectionConfig.getFilledRatioLimit()
+            borderDetectionConfig.getFilledRatioLimit(),
+            borderDetectionConfig.getCropOnlyWhite(),
+            borderDetectionConfig.getMaxCropPercentage()
         );
         updateRegionDecoderFactory();
     }
@@ -1708,7 +1712,47 @@ public class SubsamplingScaleImageView extends View {
         this.borderDetectionConfig = new BorderDetectionConfig(
             borderDetectionConfig.getMaxBorderDetectionDimension(),
             borderDetectionConfig.getThreshold(),
-            filledRatioLimit
+            filledRatioLimit,
+            borderDetectionConfig.getCropOnlyWhite(),
+            borderDetectionConfig.getMaxCropPercentage()
+        );
+        updateRegionDecoderFactory();
+    }
+    
+    /**
+     * Convenience method to set whether to crop only white backgrounds.
+     * This will take effect for newly loaded images.
+     *
+     * @param cropOnlyWhite When true, only white backgrounds are cropped (not black)
+     */
+    public void setCropOnlyWhite(boolean cropOnlyWhite) {
+        this.borderDetectionConfig = new BorderDetectionConfig(
+            borderDetectionConfig.getMaxBorderDetectionDimension(),
+            borderDetectionConfig.getThreshold(),
+            borderDetectionConfig.getFilledRatioLimit(),
+            cropOnlyWhite,
+            borderDetectionConfig.getMaxCropPercentage()
+        );
+        updateRegionDecoderFactory();
+    }
+    
+    /**
+     * Convenience method to set the maximum crop percentage.
+     * This will take effect for newly loaded images.
+     *
+     * @param maxCropPercentage Maximum percentage of dimension to crop (0.0 to 1.0), null for unlimited
+     * @throws IllegalArgumentException if maxCropPercentage is not in range [0.0, 1.0]
+     */
+    public void setMaxCropPercentage(Float maxCropPercentage) {
+        if (maxCropPercentage != null && (maxCropPercentage < 0.0f || maxCropPercentage > 1.0f)) {
+            throw new IllegalArgumentException("maxCropPercentage must be between 0.0 and 1.0, got: " + maxCropPercentage);
+        }
+        this.borderDetectionConfig = new BorderDetectionConfig(
+            borderDetectionConfig.getMaxBorderDetectionDimension(),
+            borderDetectionConfig.getThreshold(),
+            borderDetectionConfig.getFilledRatioLimit(),
+            borderDetectionConfig.getCropOnlyWhite(),
+            maxCropPercentage
         );
         updateRegionDecoderFactory();
     }
