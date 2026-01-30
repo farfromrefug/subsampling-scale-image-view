@@ -1098,47 +1098,25 @@ public class SubsamplingScaleImageView extends View {
             }
             matrix.reset();
             
-            float rotation = normalizeRotation(getImageRotation());
+            // For rotation, we need to:
+            // 1. Scale the image
+            // 2. Rotate around the center of the scaled image
+            // 3. Translate to the final position
             
-            // Check if this is an exact 90-degree rotation for optimized handling
-            boolean isExact90Deg = (Math.abs(rotation) < 0.01f || 
-                                   Math.abs(rotation - 90) < 0.01f ||
-                                   Math.abs(rotation - 180) < 0.01f ||
-                                   Math.abs(rotation - 270) < 0.01f);
+            float scaledWidth = scale * sWidth;
+            float scaledHeight = scale * sHeight;
             
+            // First scale
             matrix.postScale(xScale, yScale);
-            matrix.postRotate(getImageRotation());
+            
+            // Then rotate around center of the scaled image
+            matrix.postRotate(getImageRotation(), scaledWidth / 2f, scaledHeight / 2f);
+            
+            // Calculate where to position the image
+            // The rotated image needs to be centered at vTranslate position
+            // After rotation around center, the center point is at (scaledWidth/2, scaledHeight/2)
+            // We want it at vTranslate, so translate by vTranslate - center
             matrix.postTranslate(vTranslate.x, vTranslate.y);
-
-            if (isExact90Deg) {
-                // Use original optimized translation for exact 90-degree rotations
-                if (Math.abs(rotation - 90) < 0.01f) {
-                    matrix.postTranslate(scale * sHeight, 0);
-                } else if (Math.abs(rotation - 180) < 0.01f) {
-                    matrix.postTranslate(scale * sWidth, scale * sHeight);
-                } else if (Math.abs(rotation - 270) < 0.01f) {
-                    matrix.postTranslate(0, scale * sWidth);
-                }
-            } else {
-                // For arbitrary angles, calculate the offset to keep image positioned correctly
-                // Rotation is applied around (0,0), so we need to translate to account for the rotation
-                float rotRad = (float) Math.toRadians(getImageRotation());
-                float w = scale * sWidth;
-                float h = scale * sHeight;
-                
-                // Calculate where the center of the unrotated image would be
-                float cx = w / 2f;
-                float cy = h / 2f;
-                
-                // After rotation, adjust position to keep the rotated image properly positioned
-                float cos = (float) Math.cos(rotRad);
-                float sin = (float) Math.sin(rotRad);
-                
-                // Calculate the offset needed
-                float offsetX = cx - (cx * cos - cy * sin);
-                float offsetY = cy - (cx * sin + cy * cos);
-                matrix.postTranslate(offsetX, offsetY);
-            }
 
             if (tileBgPaint != null) {
                 if (sRect == null) {
@@ -1968,11 +1946,47 @@ public class SubsamplingScaleImageView extends View {
         if (!Float.isFinite(rotation)) {
             throw new IllegalArgumentException("Rotation must be a finite value");
         }
+        
+        float oldRotation = this.imageRotation;
         this.imageRotation = rotation;
 
-        reset(false);
-        invalidate();
-        requestLayout();
+        // Only do expensive reset if image hasn't loaded yet
+        if (!readySent) {
+            // Image not ready yet, do full reset to set up properly
+            reset(false);
+            invalidate();
+            requestLayout();
+        } else {
+            // Image is already loaded, just update the view
+            // Recalculate scale if it would change minScale
+            float oldMinScale = minScale();
+            PointF oldBounds = getRotatedBounds(oldRotation);
+            PointF newBounds = getRotatedBounds(rotation);
+            
+            // Check if the rotation change affects the required minimum scale
+            boolean boundsChanged = Math.abs(oldBounds.x - newBounds.x) > 0.01f || 
+                                   Math.abs(oldBounds.y - newBounds.y) > 0.01f;
+            
+            if (boundsChanged && scale <= oldMinScale) {
+                // We're at or near minScale and bounds changed, need to adjust scale
+                float newMinScale = minScale();
+                if (scale < newMinScale) {
+                    // Scale is now below new minimum, adjust it
+                    scale = newMinScale;
+                    
+                    // Recalculate position to keep image centered
+                    if (vTranslate != null) {
+                        vTranslate.set(vTranslateForSCenter(sWidth / 2f, sHeight / 2f, scale));
+                    }
+                }
+                
+                // Refresh tiles for new scale/rotation if needed
+                refreshRequiredTiles(true);
+            }
+            
+            invalidate();
+            requestLayout();
+        }
     }
 
     /**
