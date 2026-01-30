@@ -1881,39 +1881,43 @@ public class SubsamplingScaleImageView extends View {
 
     /**
      * Get source width taking rotation into account.
+     * For scale calculations, we use the nearest 90-degree rotation to get correct aspect ratio.
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSWidth() {
         float rotation = normalizeRotation(getImageRotation());
         
-        // For 90 and 270 degrees (within a small tolerance), swap dimensions
-        if ((Math.abs(rotation - 90) < 0.01f) || (Math.abs(rotation - 270) < 0.01f)) {
+        // Round to nearest 90 degrees for proper scale calculations
+        // This ensures the image scales correctly even at arbitrary angles
+        float rounded = Math.round(rotation / 90f) * 90f;
+        if (rounded >= 360f) rounded = 0f;
+        
+        // For 90 and 270 degrees, swap dimensions
+        if (Math.abs(rounded - 90f) < 0.01f || Math.abs(rounded - 270f) < 0.01f) {
             return sHeight;
-        } else if (Math.abs(rotation) < 0.01f || Math.abs(rotation - 180) < 0.01f) {
-            return sWidth;
         } else {
-            // For arbitrary angles, calculate the effective width
-            double rotRad = Math.toRadians(rotation);
-            return (int) Math.ceil(Math.abs(sWidth * Math.cos(rotRad)) + Math.abs(sHeight * Math.sin(rotRad)));
+            return sWidth;
         }
     }
 
     /**
      * Get source height taking rotation into account.
+     * For scale calculations, we use the nearest 90-degree rotation to get correct aspect ratio.
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSHeight() {
         float rotation = normalizeRotation(getImageRotation());
         
-        // For 90 and 270 degrees (within a small tolerance), swap dimensions
-        if ((Math.abs(rotation - 90) < 0.01f) || (Math.abs(rotation - 270) < 0.01f)) {
+        // Round to nearest 90 degrees for proper scale calculations
+        // This ensures the image scales correctly even at arbitrary angles
+        float rounded = Math.round(rotation / 90f) * 90f;
+        if (rounded >= 360f) rounded = 0f;
+        
+        // For 90 and 270 degrees, swap dimensions
+        if (Math.abs(rounded - 90f) < 0.01f || Math.abs(rounded - 270f) < 0.01f) {
             return sWidth;
-        } else if (Math.abs(rotation) < 0.01f || Math.abs(rotation - 180) < 0.01f) {
-            return sHeight;
         } else {
-            // For arbitrary angles, calculate the effective height
-            double rotRad = Math.toRadians(rotation);
-            return (int) Math.ceil(Math.abs(sHeight * Math.cos(rotRad)) + Math.abs(sWidth * Math.sin(rotRad)));
+            return sHeight;
         }
     }
 
