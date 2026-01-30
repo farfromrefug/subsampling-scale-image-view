@@ -219,7 +219,7 @@ public class SubsamplingScaleImageView extends View {
     // Source image dimensions and orientation - dimensions relate to the unrotated image
     private int sWidth;
     private int sHeight;
-    private ImageRotation imageRotation = ImageRotation.ROTATION_0;
+    private float imageRotation = 0f;
     // Min scale allowed (prevent infinite zoom)
     private float minScale = minScale();
     private Rect sRegion;
@@ -262,6 +262,8 @@ public class SubsamplingScaleImageView extends View {
     private Paint debugTextPaint;
     private Paint debugLinePaint;
     private Paint tileBgPaint;
+    // ColorFilter for bitmap drawing
+    private android.graphics.ColorFilter colorFilter;
     // Volatile fields used to reduce object creation
     private ScaleAndTranslate satTemp;
     private Matrix matrix;
@@ -1027,19 +1029,54 @@ public class SubsamplingScaleImageView extends View {
                                 matrix = new Matrix();
                             }
                             matrix.reset();
-                            setMatrixArray(srcArray, 0, 0, tile.bitmap.getWidth(), 0, tile.bitmap.getWidth(), tile.bitmap.getHeight(), 0, tile.bitmap.getHeight());
-
-                            switch (getImageRotation()) {
-                                case ROTATION_0 ->
-                                        setMatrixArray(dstArray, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom);
-                                case ROTATION_90 ->
-                                        setMatrixArray(dstArray, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top);
-                                case ROTATION_180 ->
-                                        setMatrixArray(dstArray, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top);
-                                case ROTATION_270 ->
-                                        setMatrixArray(dstArray, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom);
+                            
+                            float rotation = getImageRotation();
+                            
+                            // For exact 90-degree rotations, use the original poly-to-poly approach for precision
+                            float normalizedRotation = rotation % 360;
+                            if (normalizedRotation < 0) normalizedRotation += 360;
+                            
+                            boolean isExact90Deg = (Math.abs(normalizedRotation) < 0.1f || 
+                                                   Math.abs(normalizedRotation - 90) < 0.1f ||
+                                                   Math.abs(normalizedRotation - 180) < 0.1f ||
+                                                   Math.abs(normalizedRotation - 270) < 0.1f ||
+                                                   Math.abs(normalizedRotation - 360) < 0.1f);
+                            
+                            if (isExact90Deg) {
+                                // Use original poly-to-poly for exact 90-degree rotations
+                                setMatrixArray(srcArray, 0, 0, tile.bitmap.getWidth(), 0, tile.bitmap.getWidth(), tile.bitmap.getHeight(), 0, tile.bitmap.getHeight());
+                                
+                                if (Math.abs(normalizedRotation) < 0.1f || Math.abs(normalizedRotation - 360) < 0.1f) {
+                                    // 0 degrees
+                                    setMatrixArray(dstArray, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom);
+                                } else if (Math.abs(normalizedRotation - 90) < 0.1f) {
+                                    // 90 degrees  
+                                    setMatrixArray(dstArray, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top);
+                                } else if (Math.abs(normalizedRotation - 180) < 0.1f) {
+                                    // 180 degrees
+                                    setMatrixArray(dstArray, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top);
+                                } else {
+                                    // 270 degrees
+                                    setMatrixArray(dstArray, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom);
+                                }
+                                matrix.setPolyToPoly(srcArray, 0, dstArray, 0, 4);
+                            } else {
+                                // For arbitrary angles, apply matrix transformations
+                                // Scale the tile bitmap to match the view scale
+                                float scaleX = (float)(tile.vRect.right - tile.vRect.left) / tile.bitmap.getWidth();
+                                float scaleY = (float)(tile.vRect.bottom - tile.vRect.top) / tile.bitmap.getHeight();
+                                matrix.postScale(scaleX, scaleY);
+                                
+                                // Rotate around the bitmap center
+                                matrix.postRotate(rotation, tile.bitmap.getWidth() * scaleX / 2f, tile.bitmap.getHeight() * scaleY / 2f);
+                                
+                                // Translate to the tile position (center of vRect)
+                                float tileCenterX = (tile.vRect.left + tile.vRect.right) / 2f;
+                                float tileCenterY = (tile.vRect.top + tile.vRect.bottom) / 2f;
+                                matrix.postTranslate(tileCenterX - tile.bitmap.getWidth() * scaleX / 2f, 
+                                                    tileCenterY - tile.bitmap.getHeight() * scaleY / 2f);
                             }
-                            matrix.setPolyToPoly(srcArray, 0, dstArray, 0, 4);
+                            
                             canvas.drawBitmap(tile.bitmap, matrix, bitmapPaint);
                             if (debug) {
                                 canvas.drawRect(tile.vRect, debugLinePaint);
@@ -1063,14 +1100,25 @@ public class SubsamplingScaleImageView extends View {
             }
             matrix.reset();
             matrix.postScale(xScale, yScale);
-            matrix.postRotate(getImageRotation().getRotation());
+            matrix.postRotate(getImageRotation());
             matrix.postTranslate(vTranslate.x, vTranslate.y);
 
-            switch (getImageRotation()) {
-                case ROTATION_90 -> matrix.postTranslate(scale * sHeight, 0);
-                case ROTATION_180 -> matrix.postTranslate(scale * sWidth, scale * sHeight);
-                case ROTATION_270 -> matrix.postTranslate(0, scale * sWidth);
+            // Apply additional translation based on rotation to keep image centered
+            float rotRad = (float) Math.toRadians(getImageRotation());
+            float cos = (float) Math.cos(rotRad);
+            float sin = (float) Math.sin(rotRad);
+            
+            // Calculate offset needed to account for rotation
+            float offsetX = 0, offsetY = 0;
+            if (getImageRotation() != 0) {
+                // For non-zero rotations, adjust the translation
+                // This ensures the rotated image stays in the correct position
+                float w = scale * sWidth;
+                float h = scale * sHeight;
+                offsetX = (w - w * cos + h * sin) / 2f;
+                offsetY = (h - h * cos - w * sin) / 2f;
             }
+            matrix.postTranslate(offsetX, offsetY);
 
             if (tileBgPaint != null) {
                 if (sRect == null) {
@@ -1202,6 +1250,10 @@ public class SubsamplingScaleImageView extends View {
             bitmapPaint.setAntiAlias(true);
             bitmapPaint.setFilterBitmap(true);
             bitmapPaint.setDither(true);
+            // Apply color filter if one was set before paint creation
+            if (colorFilter != null) {
+                bitmapPaint.setColorFilter(colorFilter);
+            }
         }
         if ((debugTextPaint == null || debugLinePaint == null) && debug) {
             debugTextPaint = new Paint();
@@ -1812,11 +1864,18 @@ public class SubsamplingScaleImageView extends View {
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSWidth() {
-        ImageRotation rotation = getImageRotation();
-        if (rotation == ImageRotation.ROTATION_90 || rotation == ImageRotation.ROTATION_270) {
+        float rotation = getImageRotation() % 360;
+        if (rotation < 0) rotation += 360;
+        
+        // For 90 and 270 degrees (within a small tolerance), swap dimensions
+        if ((Math.abs(rotation - 90) < 0.1f) || (Math.abs(rotation - 270) < 0.1f)) {
             return sHeight;
-        } else {
+        } else if (Math.abs(rotation) < 0.1f || Math.abs(rotation - 180) < 0.1f || Math.abs(rotation - 360) < 0.1f) {
             return sWidth;
+        } else {
+            // For arbitrary angles, calculate the effective width
+            double rotRad = Math.toRadians(rotation);
+            return (int) Math.ceil(Math.abs(sWidth * Math.cos(rotRad)) + Math.abs(sHeight * Math.sin(rotRad)));
         }
     }
 
@@ -1825,11 +1884,18 @@ public class SubsamplingScaleImageView extends View {
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSHeight() {
-        ImageRotation rotation = getImageRotation();
-        if (rotation == ImageRotation.ROTATION_90 || rotation == ImageRotation.ROTATION_270) {
+        float rotation = getImageRotation() % 360;
+        if (rotation < 0) rotation += 360;
+        
+        // For 90 and 270 degrees (within a small tolerance), swap dimensions
+        if ((Math.abs(rotation - 90) < 0.1f) || (Math.abs(rotation - 270) < 0.1f)) {
             return sWidth;
-        } else {
+        } else if (Math.abs(rotation) < 0.1f || Math.abs(rotation - 180) < 0.1f || Math.abs(rotation - 360) < 0.1f) {
             return sHeight;
+        } else {
+            // For arbitrary angles, calculate the effective height
+            double rotRad = Math.toRadians(rotation);
+            return (int) Math.ceil(Math.abs(sHeight * Math.cos(rotRad)) + Math.abs(sWidth * Math.sin(rotRad)));
         }
     }
 
@@ -1840,30 +1906,63 @@ public class SubsamplingScaleImageView extends View {
     @SuppressWarnings("SuspiciousNameCombination")
     @AnyThread
     private void fileSRect(Rect sRect, Rect target) {
-        @SuppressLint("WrongThread") ImageRotation rotation = getImageRotation();
+        @SuppressLint("WrongThread") float rotationDegrees = getImageRotation() % 360;
+        if (rotationDegrees < 0) rotationDegrees += 360;
 
-        switch (rotation) {
-            case ROTATION_0 ->
-                    target.set(sRect);
-            case ROTATION_90 ->
-                    target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left);
-            case ROTATION_180 ->
-                    target.set(sWidth - sRect.right, sHeight - sRect.bottom, sWidth - sRect.left, sHeight - sRect.top);
-            case ROTATION_270 ->
-                    target.set(sWidth - sRect.bottom, sRect.left, sWidth - sRect.top, sRect.right);
+        // Only apply special transformations for exact 90-degree rotations
+        if (Math.abs(rotationDegrees) < 0.1f || Math.abs(rotationDegrees - 360) < 0.1f) {
+            // 0 degrees
+            target.set(sRect);
+        } else if (Math.abs(rotationDegrees - 90) < 0.1f) {
+            // 90 degrees
+            target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left);
+        } else if (Math.abs(rotationDegrees - 180) < 0.1f) {
+            // 180 degrees
+            target.set(sWidth - sRect.right, sHeight - sRect.bottom, sWidth - sRect.left, sHeight - sRect.top);
+        } else if (Math.abs(rotationDegrees - 270) < 0.1f) {
+            // 270 degrees
+            target.set(sWidth - sRect.bottom, sRect.left, sWidth - sRect.top, sRect.right);
+        } else {
+            // For arbitrary angles, use the source rect as-is
+            // The rotation will be applied during rendering
+            target.set(sRect);
         }
     }
 
-    public ImageRotation getImageRotation() {
+    public float getImageRotation() {
         return imageRotation;
     }
 
-    public void setImageRotation(ImageRotation rotation) {
+    public void setImageRotation(float rotation) {
         this.imageRotation = rotation;
 
         reset(false);
         invalidate();
         requestLayout();
+    }
+
+    /**
+     * Set a color filter for the image, similar to ImageView's setColorFilter.
+     * This will be applied to both tiled and non-tiled rendering.
+     * 
+     * @param colorFilter The color filter to apply, or null to remove any existing filter.
+     */
+    public void setColorFilter(@Nullable android.graphics.ColorFilter colorFilter) {
+        this.colorFilter = colorFilter;
+        if (bitmapPaint != null) {
+            bitmapPaint.setColorFilter(colorFilter);
+        }
+        invalidate();
+    }
+
+    /**
+     * Returns the current color filter, or null if none is set.
+     * 
+     * @return The current color filter.
+     */
+    @Nullable
+    public android.graphics.ColorFilter getColorFilter() {
+        return colorFilter;
     }
 
     /**
