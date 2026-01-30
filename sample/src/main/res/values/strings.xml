@@ -183,4 +183,23 @@
         Debug has been enabled. This shows the tile boundaries and sizes.
     </string>
 
+    <string name="rotationfilter.link">Rotation &amp; Filter</string>
+    <string name="rotationfilter.title">Rotation &amp; Filter</string>
+    <string name="rotationfilter.p1.subtitle">Float rotation</string>
+    <string name="rotationfilter.p1.text">
+        Images can now be rotated to any arbitrary angle, not just 90 degree increments. This image is rotated 45 degrees.
+    </string>
+    <string name="rotationfilter.p2.subtitle">Animated rotation</string>
+    <string name="rotationfilter.p2.text">
+        You can animate rotation smoothly using ObjectAnimator. This image performs a 360 degree rotation animation.
+    </string>
+    <string name="rotationfilter.p3.subtitle">Color filters - Tint</string>
+    <string name="rotationfilter.p3.text">
+        Color filters can be applied to the image view, just like the standard ImageView. This demonstrates a red tint.
+    </string>
+    <string name="rotationfilter.p4.subtitle">Color filters - Grayscale</string>
+    <string name="rotationfilter.p4.text">
+        Color matrix filters can create effects like grayscale, sepia, and more. This image has a grayscale filter applied.
+    </string>
+
 </resources>
