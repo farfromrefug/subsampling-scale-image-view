@@ -1942,6 +1942,16 @@ public class SubsamplingScaleImageView extends View {
     }
 
     /**
+     * Set the image rotation using the ImageRotation enum (backward compatibility).
+     * For rotation animation, use setImageRotation(float) instead.
+     * 
+     * @param rotation The rotation to apply.
+     */
+    public void setImageRotation(@NonNull ImageRotation rotation) {
+        setImageRotation((float) rotation.getRotation());
+    }
+
+    /**
      * Set a color filter for the image, similar to ImageView's setColorFilter.
      * This will be applied to both tiled and non-tiled rendering.
      * 
