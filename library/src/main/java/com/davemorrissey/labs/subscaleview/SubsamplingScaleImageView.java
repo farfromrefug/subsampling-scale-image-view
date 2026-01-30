@@ -1880,45 +1880,43 @@ public class SubsamplingScaleImageView extends View {
     }
 
     /**
-     * Get source width taking rotation into account.
-     * For scale calculations, we use the nearest 90-degree rotation to get correct aspect ratio.
+     * Get source width (always returns actual width, not affected by rotation for dimension swapping).
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSWidth() {
-        float rotation = normalizeRotation(getImageRotation());
-        
-        // Round to nearest 90 degrees for proper scale calculations
-        // This ensures the image scales correctly even at arbitrary angles
-        float rounded = Math.round(rotation / 90f) * 90f;
-        if (rounded >= 360f) rounded = 0f;
-        
-        // For 90 and 270 degrees, swap dimensions
-        if (Math.abs(rounded - 90f) < 0.01f || Math.abs(rounded - 270f) < 0.01f) {
-            return sHeight;
-        } else {
-            return sWidth;
-        }
+        return sWidth;
     }
 
     /**
-     * Get source height taking rotation into account.
-     * For scale calculations, we use the nearest 90-degree rotation to get correct aspect ratio.
+     * Get source height (always returns actual height, not affected by rotation for dimension swapping).
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSHeight() {
-        float rotation = normalizeRotation(getImageRotation());
+        return sHeight;
+    }
+
+    /**
+     * Calculate the rotated bounding box dimensions for a given rotation angle.
+     * This is used to compute proper scale factors that account for rotation.
+     */
+    private PointF getRotatedBounds(float rotationDegrees) {
+        float dW = sWidth;
+        float dH = sHeight;
         
-        // Round to nearest 90 degrees for proper scale calculations
-        // This ensures the image scales correctly even at arbitrary angles
-        float rounded = Math.round(rotation / 90f) * 90f;
-        if (rounded >= 360f) rounded = 0f;
-        
-        // For 90 and 270 degrees, swap dimensions
-        if (Math.abs(rounded - 90f) < 0.01f || Math.abs(rounded - 270f) < 0.01f) {
-            return sWidth;
-        } else {
-            return sHeight;
+        if (dW <= 0 || dH <= 0) {
+            return new PointF(dW, dH);
         }
+        
+        // Calculate rotation in radians
+        double rotRad = Math.toRadians(rotationDegrees);
+        double cos = Math.abs(Math.cos(rotRad));
+        double sin = Math.abs(Math.sin(rotRad));
+        
+        // Calculate rotated bounding box dimensions
+        float rotatedWidth = (float)(dW * cos + dH * sin);
+        float rotatedHeight = (float)(dH * cos + dW * sin);
+        
+        return new PointF(rotatedWidth, rotatedHeight);
     }
 
     /**
@@ -2282,24 +2280,28 @@ public class SubsamplingScaleImageView extends View {
 
         int vPadding = getPaddingBottom() + getPaddingTop() + vExtra;
         int hPadding = getPaddingLeft() + getPaddingRight() + hExtra;
-        int sWidth = getEffectiveSWidth();
-        int sHeight = getEffectiveSHeight();
+        
+        // Get the rotated bounding box dimensions for proper scale calculation
+        PointF rotatedBounds = getRotatedBounds(getImageRotation());
+        float rotatedWidth = rotatedBounds.x;
+        float rotatedHeight = rotatedBounds.y;
+        
         switch (minimumScaleType) {
             case SCALE_TYPE_CENTER_INSIDE:
             default:
-                return Math.min((getWidth() - hPadding) / (float) sWidth, (getHeight() - vPadding) / (float) sHeight);
+                return Math.min((getWidth() - hPadding) / rotatedWidth, (getHeight() - vPadding) / rotatedHeight);
             case SCALE_TYPE_CENTER_CROP:
-                return Math.max((getWidth() - hPadding) / (float) sWidth, (getHeight() - vPadding) / (float) sHeight);
+                return Math.max((getWidth() - hPadding) / rotatedWidth, (getHeight() - vPadding) / rotatedHeight);
             case SCALE_TYPE_FIT_WIDTH:
-                return (getWidth() - hPadding) / (float) sWidth;
+                return (getWidth() - hPadding) / rotatedWidth;
             case SCALE_TYPE_FIT_HEIGHT:
-                return (getHeight() - vPadding) / (float) sHeight;
+                return (getHeight() - vPadding) / rotatedHeight;
             case SCALE_TYPE_ORIGINAL_SIZE:
                 return 1;
             case SCALE_TYPE_SMART_FIT:
                 // Always ensure the full image is visible by using the minimum scale
                 // that fits both dimensions within the view, just like CENTER_INSIDE
-                return Math.min((getWidth() - hPadding) / (float) sWidth, (getHeight() - vPadding) / (float) sHeight);
+                return Math.min((getWidth() - hPadding) / rotatedWidth, (getHeight() - vPadding) / rotatedHeight);
             case SCALE_TYPE_CUSTOM:
                 return minScale;
         }

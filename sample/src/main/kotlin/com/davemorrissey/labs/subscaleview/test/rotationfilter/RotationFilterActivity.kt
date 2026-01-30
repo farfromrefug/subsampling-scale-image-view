@@ -8,6 +8,8 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.os.Bundle
 import android.view.View
+import android.widget.SeekBar
+import android.widget.TextView
 import com.davemorrissey.labs.subscaleview.ImageSource
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.davemorrissey.labs.subscaleview.test.AbstractPagesActivity
@@ -28,17 +30,36 @@ class RotationFilterActivity : AbstractPagesActivity(
     private var view: SubsamplingScaleImageView? = null
     private var playButton: View? = null
     private var currentAnimator: ObjectAnimator? = null
+    private var rotationSliderPanel: View? = null
+    private var rotationSlider: SeekBar? = null
+    private var rotationLabel: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         view = findViewById(id.imageView)
         playButton = findViewById(id.play)
+        rotationSliderPanel = findViewById(id.rotationSliderPanel)
+        rotationSlider = findViewById(id.rotationSlider)
+        rotationLabel = findViewById(id.rotationLabel)
         
         view?.setImage(ImageSource.asset(this, "sanmartino.jpg"))
         
         playButton?.setOnClickListener {
             startRotationAnimation()
         }
+        
+        // Setup rotation slider
+        rotationSlider?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    view?.setImageRotation(progress.toFloat())
+                    rotationLabel?.text = "Rotation: ${progress}°"
+                }
+            }
+            
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
     }
 
     override fun onPageChanged(page: Int) {
@@ -53,18 +74,22 @@ class RotationFilterActivity : AbstractPagesActivity(
             
             when (page) {
                 0 -> {
-                    // Float rotation - set to 45 degrees
+                    // Float rotation with slider
                     playButton?.visibility = View.GONE
-                    imageView.setImageRotation(45f)
+                    rotationSliderPanel?.visibility = View.VISIBLE
+                    rotationSlider?.progress = 0
+                    rotationLabel?.text = "Rotation: 0°"
                 }
                 1 -> {
                     // Animated rotation - show play button
                     playButton?.visibility = View.VISIBLE
+                    rotationSliderPanel?.visibility = View.GONE
                     // Don't auto-start the animation
                 }
                 2 -> {
                     // Red tint color filter
                     playButton?.visibility = View.GONE
+                    rotationSliderPanel?.visibility = View.GONE
                     val redTint = PorterDuffColorFilter(
                         Color.argb(100, 255, 0, 0),
                         PorterDuff.Mode.SRC_ATOP
@@ -74,6 +99,7 @@ class RotationFilterActivity : AbstractPagesActivity(
                 3 -> {
                     // Grayscale color filter
                     playButton?.visibility = View.GONE
+                    rotationSliderPanel?.visibility = View.GONE
                     val matrix = ColorMatrix()
                     matrix.setSaturation(0f)
                     imageView.setColorFilter(ColorMatrixColorFilter(matrix))

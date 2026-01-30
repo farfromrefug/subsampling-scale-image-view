@@ -2,6 +2,32 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     style="@style/fill">
 
+    <LinearLayout
+        android:id="@+id/rotationSliderPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:background="#CC000000"
+        android:visibility="gone">
+        
+        <TextView
+            android:id="@+id/rotationLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Rotation: 0°"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp" />
+        
+        <SeekBar
+            android:id="@+id/rotationSlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="360"
+            android:progress="0" />
+    </LinearLayout>
+
     <RelativeLayout
         android:id="@+id/footer"
         style="@style/footer">
@@ -34,6 +60,9 @@
 
     <com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
         android:id="@+id/imageView"
-        style="@style/mainPanel" />
+        android:layout_above="@id/footer"
+        android:layout_below="@id/rotationSliderPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
 </RelativeLayout>
