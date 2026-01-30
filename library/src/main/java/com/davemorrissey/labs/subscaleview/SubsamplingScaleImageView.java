@@ -1033,26 +1033,24 @@ public class SubsamplingScaleImageView extends View {
                             float rotation = getImageRotation();
                             
                             // For exact 90-degree rotations, use the original poly-to-poly approach for precision
-                            float normalizedRotation = rotation % 360;
-                            if (normalizedRotation < 0) normalizedRotation += 360;
+                            float normalizedRotation = normalizeRotation(rotation);
                             
-                            boolean isExact90Deg = (Math.abs(normalizedRotation) < 0.1f || 
-                                                   Math.abs(normalizedRotation - 90) < 0.1f ||
-                                                   Math.abs(normalizedRotation - 180) < 0.1f ||
-                                                   Math.abs(normalizedRotation - 270) < 0.1f ||
-                                                   Math.abs(normalizedRotation - 360) < 0.1f);
+                            boolean isExact90Deg = (Math.abs(normalizedRotation) < 0.01f || 
+                                                   Math.abs(normalizedRotation - 90) < 0.01f ||
+                                                   Math.abs(normalizedRotation - 180) < 0.01f ||
+                                                   Math.abs(normalizedRotation - 270) < 0.01f);
                             
                             if (isExact90Deg) {
                                 // Use original poly-to-poly for exact 90-degree rotations
                                 setMatrixArray(srcArray, 0, 0, tile.bitmap.getWidth(), 0, tile.bitmap.getWidth(), tile.bitmap.getHeight(), 0, tile.bitmap.getHeight());
                                 
-                                if (Math.abs(normalizedRotation) < 0.1f || Math.abs(normalizedRotation - 360) < 0.1f) {
+                                if (Math.abs(normalizedRotation) < 0.01f) {
                                     // 0 degrees
                                     setMatrixArray(dstArray, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom);
-                                } else if (Math.abs(normalizedRotation - 90) < 0.1f) {
+                                } else if (Math.abs(normalizedRotation - 90) < 0.01f) {
                                     // 90 degrees  
                                     setMatrixArray(dstArray, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top);
-                                } else if (Math.abs(normalizedRotation - 180) < 0.1f) {
+                                } else if (Math.abs(normalizedRotation - 180) < 0.01f) {
                                     // 180 degrees
                                     setMatrixArray(dstArray, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top);
                                 } else {
@@ -1099,26 +1097,48 @@ public class SubsamplingScaleImageView extends View {
                 matrix = new Matrix();
             }
             matrix.reset();
+            
+            float rotation = normalizeRotation(getImageRotation());
+            
+            // Check if this is an exact 90-degree rotation for optimized handling
+            boolean isExact90Deg = (Math.abs(rotation) < 0.01f || 
+                                   Math.abs(rotation - 90) < 0.01f ||
+                                   Math.abs(rotation - 180) < 0.01f ||
+                                   Math.abs(rotation - 270) < 0.01f);
+            
             matrix.postScale(xScale, yScale);
             matrix.postRotate(getImageRotation());
             matrix.postTranslate(vTranslate.x, vTranslate.y);
 
-            // Apply additional translation based on rotation to keep image centered
-            float rotRad = (float) Math.toRadians(getImageRotation());
-            float cos = (float) Math.cos(rotRad);
-            float sin = (float) Math.sin(rotRad);
-            
-            // Calculate offset needed to account for rotation
-            float offsetX = 0, offsetY = 0;
-            if (getImageRotation() != 0) {
-                // For non-zero rotations, adjust the translation
-                // This ensures the rotated image stays in the correct position
+            if (isExact90Deg) {
+                // Use original optimized translation for exact 90-degree rotations
+                if (Math.abs(rotation - 90) < 0.01f) {
+                    matrix.postTranslate(scale * sHeight, 0);
+                } else if (Math.abs(rotation - 180) < 0.01f) {
+                    matrix.postTranslate(scale * sWidth, scale * sHeight);
+                } else if (Math.abs(rotation - 270) < 0.01f) {
+                    matrix.postTranslate(0, scale * sWidth);
+                }
+            } else {
+                // For arbitrary angles, calculate the offset to keep image positioned correctly
+                // Rotation is applied around (0,0), so we need to translate to account for the rotation
+                float rotRad = (float) Math.toRadians(getImageRotation());
                 float w = scale * sWidth;
                 float h = scale * sHeight;
-                offsetX = (w - w * cos + h * sin) / 2f;
-                offsetY = (h - h * cos - w * sin) / 2f;
+                
+                // Calculate where the center of the unrotated image would be
+                float cx = w / 2f;
+                float cy = h / 2f;
+                
+                // After rotation, adjust position to keep the rotated image properly positioned
+                float cos = (float) Math.cos(rotRad);
+                float sin = (float) Math.sin(rotRad);
+                
+                // Calculate the offset needed
+                float offsetX = cx - (cx * cos - cy * sin);
+                float offsetY = cy - (cx * sin + cy * cos);
+                matrix.postTranslate(offsetX, offsetY);
             }
-            matrix.postTranslate(offsetX, offsetY);
 
             if (tileBgPaint != null) {
                 if (sRect == null) {
@@ -1864,13 +1884,12 @@ public class SubsamplingScaleImageView extends View {
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSWidth() {
-        float rotation = getImageRotation() % 360;
-        if (rotation < 0) rotation += 360;
+        float rotation = normalizeRotation(getImageRotation());
         
         // For 90 and 270 degrees (within a small tolerance), swap dimensions
-        if ((Math.abs(rotation - 90) < 0.1f) || (Math.abs(rotation - 270) < 0.1f)) {
+        if ((Math.abs(rotation - 90) < 0.01f) || (Math.abs(rotation - 270) < 0.01f)) {
             return sHeight;
-        } else if (Math.abs(rotation) < 0.1f || Math.abs(rotation - 180) < 0.1f || Math.abs(rotation - 360) < 0.1f) {
+        } else if (Math.abs(rotation) < 0.01f || Math.abs(rotation - 180) < 0.01f) {
             return sWidth;
         } else {
             // For arbitrary angles, calculate the effective width
@@ -1884,13 +1903,12 @@ public class SubsamplingScaleImageView extends View {
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSHeight() {
-        float rotation = getImageRotation() % 360;
-        if (rotation < 0) rotation += 360;
+        float rotation = normalizeRotation(getImageRotation());
         
         // For 90 and 270 degrees (within a small tolerance), swap dimensions
-        if ((Math.abs(rotation - 90) < 0.1f) || (Math.abs(rotation - 270) < 0.1f)) {
+        if ((Math.abs(rotation - 90) < 0.01f) || (Math.abs(rotation - 270) < 0.01f)) {
             return sWidth;
-        } else if (Math.abs(rotation) < 0.1f || Math.abs(rotation - 180) < 0.1f || Math.abs(rotation - 360) < 0.1f) {
+        } else if (Math.abs(rotation) < 0.01f || Math.abs(rotation - 180) < 0.01f) {
             return sHeight;
         } else {
             // For arbitrary angles, calculate the effective height
@@ -1906,20 +1924,19 @@ public class SubsamplingScaleImageView extends View {
     @SuppressWarnings("SuspiciousNameCombination")
     @AnyThread
     private void fileSRect(Rect sRect, Rect target) {
-        @SuppressLint("WrongThread") float rotationDegrees = getImageRotation() % 360;
-        if (rotationDegrees < 0) rotationDegrees += 360;
+        @SuppressLint("WrongThread") float rotationDegrees = normalizeRotation(getImageRotation());
 
         // Only apply special transformations for exact 90-degree rotations
-        if (Math.abs(rotationDegrees) < 0.1f || Math.abs(rotationDegrees - 360) < 0.1f) {
+        if (Math.abs(rotationDegrees) < 0.01f) {
             // 0 degrees
             target.set(sRect);
-        } else if (Math.abs(rotationDegrees - 90) < 0.1f) {
+        } else if (Math.abs(rotationDegrees - 90) < 0.01f) {
             // 90 degrees
             target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left);
-        } else if (Math.abs(rotationDegrees - 180) < 0.1f) {
+        } else if (Math.abs(rotationDegrees - 180) < 0.01f) {
             // 180 degrees
             target.set(sWidth - sRect.right, sHeight - sRect.bottom, sWidth - sRect.left, sHeight - sRect.top);
-        } else if (Math.abs(rotationDegrees - 270) < 0.1f) {
+        } else if (Math.abs(rotationDegrees - 270) < 0.01f) {
             // 270 degrees
             target.set(sWidth - sRect.bottom, sRect.left, sWidth - sRect.top, sRect.right);
         } else {
@@ -1929,11 +1946,26 @@ public class SubsamplingScaleImageView extends View {
         }
     }
 
+    /**
+     * Normalize rotation to 0-360 range.
+     * @param rotation The rotation angle in degrees
+     * @return Normalized rotation in [0, 360) range
+     */
+    private float normalizeRotation(float rotation) {
+        float normalized = rotation % 360;
+        if (normalized < 0) normalized += 360;
+        return normalized;
+    }
+
     public float getImageRotation() {
         return imageRotation;
     }
 
     public void setImageRotation(float rotation) {
+        // Validate input
+        if (!Float.isFinite(rotation)) {
+            throw new IllegalArgumentException("Rotation must be a finite value");
+        }
         this.imageRotation = rotation;
 
         reset(false);

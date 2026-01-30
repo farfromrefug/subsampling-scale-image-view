@@ -85,15 +85,15 @@ imageView.setColorFilter(grayscaleFilter);
 
 #### Sepia Effect
 ```java
-ColorMatrix matrix = new ColorMatrix();
-matrix.setSaturation(0);
+// Create a sepia effect
+ColorMatrix sepiaMatrix = new ColorMatrix(new float[]{
+    0.393f, 0.769f, 0.189f, 0, 0,
+    0.349f, 0.686f, 0.168f, 0, 0,
+    0.272f, 0.534f, 0.131f, 0, 0,
+    0,      0,      0,      1, 0
+});
 
-ColorMatrix sepiaMatrix = new ColorMatrix();
-sepiaMatrix.setScale(1.0f, 0.95f, 0.82f, 1.0f);
-
-matrix.postConcat(sepiaMatrix);
-
-imageView.setColorFilter(new ColorMatrixColorFilter(matrix));
+imageView.setColorFilter(new ColorMatrixColorFilter(sepiaMatrix));
 ```
 
 #### Removing a Color Filter

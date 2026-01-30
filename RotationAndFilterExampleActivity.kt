@@ -142,18 +142,13 @@ class RotationAndFilterExampleActivity : AppCompatActivity() {
     }
 
     private fun applySepia() {
-        // Create a sepia effect
-        val sepiaMatrix = ColorMatrix()
-        sepiaMatrix.setSaturation(0f)
-        
-        val sepiaValues = floatArrayOf(
-            1.0f, 0f, 0f, 0f, 0f,
-            0.95f, 0f, 0f, 0f, 0f,
-            0.82f, 0f, 0f, 0f, 0f,
-            0f, 0f, 0f, 1.0f, 0f
-        )
-        val sepia = ColorMatrix(sepiaValues)
-        sepiaMatrix.postConcat(sepia)
+        // Create a proper sepia effect using standard sepia transformation matrix
+        val sepiaMatrix = ColorMatrix(floatArrayOf(
+            0.393f, 0.769f, 0.189f, 0f, 0f,
+            0.349f, 0.686f, 0.168f, 0f, 0f,
+            0.272f, 0.534f, 0.131f, 0f, 0f,
+            0f,     0f,     0f,     1f, 0f
+        ))
         
         imageView.setColorFilter(ColorMatrixColorFilter(sepiaMatrix))
     }
