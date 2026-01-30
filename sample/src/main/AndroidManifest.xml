@@ -48,5 +48,8 @@
         <activity
             android:name=".configuration.ConfigurationActivity"
             android:exported="false" />
+        <activity
+            android:name=".rotationfilter.RotationFilterActivity"
+            android:exported="false" />
     </application>
 </manifest>
