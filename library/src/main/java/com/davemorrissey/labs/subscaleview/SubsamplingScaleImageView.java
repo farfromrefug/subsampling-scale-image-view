@@ -1433,6 +1433,7 @@ public class SubsamplingScaleImageView extends View {
     /**
      * Apply pan constraints based on rotated image bounds.
      * Called after fitToBounds to add rotation-aware pan limits without affecting centering.
+     * Only applies when zoomed in - at minScale, fitToBounds handles centering correctly.
      */
     private void constrainPanWithRotation() {
         if (vTranslate == null || panLimit == PAN_LIMIT_OUTSIDE) {
@@ -1442,6 +1443,14 @@ public class SubsamplingScaleImageView extends View {
         float rotation = getImageRotation();
         if (rotation == 0f) {
             // No rotation, fitToBounds already handled it correctly
+            return;
+        }
+        
+        // Don't apply rotation-based constraints at minScale - it breaks centering
+        // At minScale, vTranslate is used to center the image and fitToBounds handles it correctly
+        // Only apply constraints when zoomed in (scale > minScale)
+        float currentMinScale = minScale();
+        if (scale <= currentMinScale * 1.01f) {  // Small tolerance for floating point comparison
             return;
         }
         
