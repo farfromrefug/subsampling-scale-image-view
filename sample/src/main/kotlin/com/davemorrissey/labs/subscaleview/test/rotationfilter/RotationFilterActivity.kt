@@ -42,7 +42,7 @@ class RotationFilterActivity : AbstractPagesActivity(
         rotationSlider = findViewById(id.rotationSlider)
         rotationLabel = findViewById(id.rotationLabel)
         
-        view?.setImage(ImageSource.asset(this, "sanmartino.jpg"))
+        view?.setImage(ImageSource.asset(this, "card.png"))
         
         playButton?.setOnClickListener {
             startRotationAnimation()
@@ -79,6 +79,7 @@ class RotationFilterActivity : AbstractPagesActivity(
                     rotationSliderPanel?.visibility = View.VISIBLE
                     rotationSlider?.progress = 0
                     rotationLabel?.text = "Rotation: 0°"
+//                    imageView.setImageRotation.(90f)
                 }
                 1 -> {
                     // Animated rotation - show play button

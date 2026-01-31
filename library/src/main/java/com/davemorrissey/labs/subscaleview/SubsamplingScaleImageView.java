@@ -1035,30 +1035,30 @@ public class SubsamplingScaleImageView extends View {
                             // For exact 90-degree rotations, use the original poly-to-poly approach for precision
                             float normalizedRotation = normalizeRotation(rotation);
                             
-                            boolean isExact90Deg = (Math.abs(normalizedRotation) < 0.01f || 
-                                                   Math.abs(normalizedRotation - 90) < 0.01f ||
-                                                   Math.abs(normalizedRotation - 180) < 0.01f ||
-                                                   Math.abs(normalizedRotation - 270) < 0.01f);
+//                            boolean isExact90Deg = (Math.abs(normalizedRotation) < 0.01f ||
+//                                                   Math.abs(normalizedRotation - 90) < 0.01f ||
+//                                                   Math.abs(normalizedRotation - 180) < 0.01f ||
+//                                                   Math.abs(normalizedRotation - 270) < 0.01f);
                             
-                            if (isExact90Deg) {
-                                // Use original poly-to-poly for exact 90-degree rotations
-                                setMatrixArray(srcArray, 0, 0, tile.bitmap.getWidth(), 0, tile.bitmap.getWidth(), tile.bitmap.getHeight(), 0, tile.bitmap.getHeight());
-                                
-                                if (Math.abs(normalizedRotation) < 0.01f) {
-                                    // 0 degrees
-                                    setMatrixArray(dstArray, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom);
-                                } else if (Math.abs(normalizedRotation - 90) < 0.01f) {
-                                    // 90 degrees  
-                                    setMatrixArray(dstArray, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top);
-                                } else if (Math.abs(normalizedRotation - 180) < 0.01f) {
-                                    // 180 degrees
-                                    setMatrixArray(dstArray, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top);
-                                } else {
-                                    // 270 degrees
-                                    setMatrixArray(dstArray, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom);
-                                }
-                                matrix.setPolyToPoly(srcArray, 0, dstArray, 0, 4);
-                            } else {
+//                            if (isExact90Deg) {
+//                                // Use original poly-to-poly for exact 90-degree rotations
+//                                setMatrixArray(srcArray, 0, 0, tile.bitmap.getWidth(), 0, tile.bitmap.getWidth(), tile.bitmap.getHeight(), 0, tile.bitmap.getHeight());
+//
+//                                if (Math.abs(normalizedRotation) < 0.01f) {
+//                                    // 0 degrees
+//                                    setMatrixArray(dstArray, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom);
+//                                } else if (Math.abs(normalizedRotation - 90) < 0.01f) {
+//                                    // 90 degrees
+//                                    setMatrixArray(dstArray, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top);
+//                                } else if (Math.abs(normalizedRotation - 180) < 0.01f) {
+//                                    // 180 degrees
+//                                    setMatrixArray(dstArray, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top);
+//                                } else {
+//                                    // 270 degrees
+//                                    setMatrixArray(dstArray, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom);
+//                                }
+//                                matrix.setPolyToPoly(srcArray, 0, dstArray, 0, 4);
+//                            } else {
                                 // For arbitrary angles, apply matrix transformations
                                 // Scale the tile bitmap to match the view scale
                                 float scaleX = (float)(tile.vRect.right - tile.vRect.left) / tile.bitmap.getWidth();
@@ -1073,7 +1073,7 @@ public class SubsamplingScaleImageView extends View {
                                 float tileCenterY = (tile.vRect.top + tile.vRect.bottom) / 2f;
                                 matrix.postTranslate(tileCenterX - tile.bitmap.getWidth() * scaleX / 2f, 
                                                     tileCenterY - tile.bitmap.getHeight() * scaleY / 2f);
-                            }
+//                            }
                             
                             canvas.drawBitmap(tile.bitmap, matrix, bitmapPaint);
                             if (debug) {
@@ -1946,7 +1946,8 @@ public class SubsamplingScaleImageView extends View {
         if (!Float.isFinite(rotation)) {
             throw new IllegalArgumentException("Rotation must be a finite value");
         }
-        
+
+        float oldMinScale = minScale();
         float oldRotation = this.imageRotation;
         this.imageRotation = rotation;
 
@@ -1957,31 +1958,37 @@ public class SubsamplingScaleImageView extends View {
             invalidate();
             requestLayout();
         } else {
-            // Image is already loaded, just update the view
-            // Recalculate scale if it would change minScale
-            float oldMinScale = minScale();
-            PointF oldBounds = getRotatedBounds(oldRotation);
-            PointF newBounds = getRotatedBounds(rotation);
-            
-            // Check if the rotation change affects the required minimum scale
-            boolean boundsChanged = Math.abs(oldBounds.x - newBounds.x) > 0.01f || 
-                                   Math.abs(oldBounds.y - newBounds.y) > 0.01f;
-            
-            if (boundsChanged && scale <= oldMinScale) {
-                // We're at or near minScale and bounds changed, need to adjust scale
+            if (tileMap != null) {
+                for (Map.Entry<Integer, List<Tile>> tileMapEntry : tileMap.entrySet()) {
+                    for (Tile tile : tileMapEntry.getValue()) {
+                        fileSRect(tile.sRect, tile.fileSRect);
+                    }
+                }
+            }
+
+            if (scale == oldMinScale) {
+                // Image is already loaded, just update the view
+                // Recalculate scale if it would change minScale
+                PointF oldBounds = getRotatedBounds(oldRotation);
+                PointF newBounds = getRotatedBounds(rotation);
+
+                // Check if the rotation change affects the required minimum scale
+                boolean boundsChanged = Math.abs(oldBounds.x - newBounds.x) > 0.01f ||
+                        Math.abs(oldBounds.y - newBounds.y) > 0.01f;
+
                 float newMinScale = minScale();
-                if (scale < newMinScale) {
+                if (boundsChanged && newMinScale != oldMinScale) {
+                    // We're at or near minScale and bounds changed, need to adjust scale
                     // Scale is now below new minimum, adjust it
                     scale = newMinScale;
-                    
+
                     // Recalculate position to keep image centered
                     if (vTranslate != null) {
                         vTranslate.set(vTranslateForSCenter(sWidth / 2f, sHeight / 2f, scale));
                     }
+                    // Refresh tiles for new scale/rotation if needed
+                    refreshRequiredTiles(true);
                 }
-                
-                // Refresh tiles for new scale/rotation if needed
-                refreshRequiredTiles(true);
             }
             
             invalidate();
