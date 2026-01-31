@@ -1330,11 +1330,76 @@ public class SubsamplingScaleImageView extends View {
      * Determine whether tile is visible.
      */
     private boolean tileVisible(Tile tile) {
-        float sVisLeft = viewToSourceX(0),
-                sVisRight = viewToSourceX(getWidth()),
-                sVisTop = viewToSourceY(0),
-                sVisBottom = viewToSourceY(getHeight());
-        return !(sVisLeft > tile.sRect.right || tile.sRect.left > sVisRight || sVisTop > tile.sRect.bottom || tile.sRect.top > sVisBottom);
+        float rotation = getImageRotation();
+        
+        if (rotation == 0f) {
+            // No rotation - simple axis-aligned check
+            float sVisLeft = viewToSourceX(0);
+            float sVisRight = viewToSourceX(getWidth());
+            float sVisTop = viewToSourceY(0);
+            float sVisBottom = viewToSourceY(getHeight());
+            return !(sVisLeft > tile.sRect.right || tile.sRect.left > sVisRight || 
+                     sVisTop > tile.sRect.bottom || tile.sRect.top > sVisBottom);
+        } else {
+            // With rotation, be more conservative
+            // The visible area in source space is a rotated rectangle
+            // For simplicity, expand the check area to avoid missing tiles
+            
+            // Get the four corners of the view in view coordinates
+            float[] viewCorners = new float[] {
+                0, 0,                    // top-left
+                getWidth(), 0,           // top-right  
+                getWidth(), getHeight(), // bottom-right
+                0, getHeight()           // bottom-left
+            };
+            
+            // Convert to source coordinates accounting for rotation
+            // We need the inverse transformation: inverse(rotate -> scale -> translate)
+            // Which is: inverse translate -> inverse scale -> inverse rotate
+            
+            // For now, use a conservative bounding box approach:
+            // Find min/max of all corners after transformation
+            float minSx = Float.MAX_VALUE, maxSx = Float.MIN_VALUE;
+            float minSy = Float.MAX_VALUE, maxSy = Float.MIN_VALUE;
+            
+            // Transform each corner through inverse of the rendering transformation
+            Matrix inverseMatrix = new Matrix();
+            Matrix renderMatrix = new Matrix();
+            
+            // Rendering transformation (from draw code):
+            // 1. Scale
+            // 2. Rotate around center
+            // 3. Translate by vTranslate
+            float scaledWidth = scale * sWidth;
+            float scaledHeight = scale * sHeight;
+            renderMatrix.postScale(scale, scale);
+            renderMatrix.postRotate(rotation, scaledWidth / 2f, scaledHeight / 2f);
+            renderMatrix.postTranslate(vTranslate.x, vTranslate.y);
+            
+            // Invert it
+            if (!renderMatrix.invert(inverseMatrix)) {
+                // Matrix not invertible, fall back to conservative approach
+                return true;
+            }
+            
+            // Transform all view corners to source space
+            float[] sourceCorners = new float[8];
+            inverseMatrix.mapPoints(sourceCorners, viewCorners);
+            
+            // Find bounding box in source space
+            for (int i = 0; i < 4; i++) {
+                float sx = sourceCorners[i * 2];
+                float sy = sourceCorners[i * 2 + 1];
+                minSx = Math.min(minSx, sx);
+                maxSx = Math.max(maxSx, sx);
+                minSy = Math.min(minSy, sy);
+                maxSy = Math.max(maxSy, sy);
+            }
+            
+            // Check if tile intersects this bounding box
+            return !(minSx > tile.sRect.right || tile.sRect.left > maxSx || 
+                     minSy > tile.sRect.bottom || tile.sRect.top > maxSy);
+        }
     }
 
     /**
@@ -1356,11 +1421,60 @@ public class SubsamplingScaleImageView extends View {
             sPendingCenter = null;
             pendingScale = null;
             fitToBounds(true);
+            constrainPanWithRotation();
             refreshRequiredTiles(true);
         }
 
         // On first display of base image set up position, and in other cases make sure scale is correct.
         fitToBounds(false);
+        constrainPanWithRotation();
+    }
+    
+    /**
+     * Apply pan constraints based on rotated image bounds.
+     * Called after fitToBounds to add rotation-aware pan limits without affecting centering.
+     */
+    private void constrainPanWithRotation() {
+        if (vTranslate == null || panLimit == PAN_LIMIT_OUTSIDE) {
+            return;
+        }
+        
+        float rotation = getImageRotation();
+        if (rotation == 0f) {
+            // No rotation, fitToBounds already handled it correctly
+            return;
+        }
+        
+        // With rotation, need to ensure we don't pan beyond the rotated image bounds
+        PointF rotatedBounds = getRotatedBounds(rotation);
+        float rotatedScaleWidth = scale * rotatedBounds.x;
+        float rotatedScaleHeight = scale * rotatedBounds.y;
+        
+        boolean extra = panLimit == PAN_LIMIT_INSIDE;
+        float extraLeft = extra ? vExtraSpaceLeft : 0;
+        float extraRight = extra ? vExtraSpaceRight : 0;
+        float extraTop = extra ? vExtraSpaceTop : 0;
+        float extraBottom = extra ? vExtraSpaceBottom : 0;
+        
+        // Calculate pan limits based on rotated bounds
+        float minX, maxX, minY, maxY;
+        
+        if (panLimit == PAN_LIMIT_CENTER) {
+            minX = getWidth() / 2 - rotatedScaleWidth;
+            maxX = getWidth() / 2;
+            minY = getHeight() / 2 - rotatedScaleHeight;
+            maxY = getHeight() / 2;
+        } else {
+            // PAN_LIMIT_INSIDE or default
+            minX = getWidth() - rotatedScaleWidth - extraRight;
+            maxX = extraLeft;
+            minY = getHeight() - rotatedScaleHeight - extraBottom;
+            maxY = extraTop;
+        }
+        
+        // Apply constraints
+        vTranslate.x = Math.max(minX, Math.min(maxX, vTranslate.x));
+        vTranslate.y = Math.max(minY, Math.min(maxY, vTranslate.y));
     }
 
     /**
