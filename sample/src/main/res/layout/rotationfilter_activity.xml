@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/fill">
+
+    <LinearLayout
+        android:id="@+id/rotationSliderPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:background="#CC000000"
+        android:visibility="gone">
+        
+        <TextView
+            android:id="@+id/rotationLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Rotation: 0°"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp" />
+        
+        <SeekBar
+            android:id="@+id/rotationSlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="360"
+            android:progress="0" />
+    </LinearLayout>
+
+    <RelativeLayout
+        android:id="@+id/footer"
+        style="@style/footer">
+
+        <ImageView
+            android:id="@+id/previous"
+            style="@style/previousButton"
+            android:contentDescription="@string/button.previous" />
+
+        <ImageView
+            android:id="@+id/next"
+            style="@style/nextButton"
+            android:contentDescription="@string/button.next" />
+
+        <ImageView
+            android:id="@+id/play"
+            style="@style/footerButton"
+            android:layout_toStartOf="@id/next"
+            android:contentDescription="@string/button.animate"
+            android:src="@drawable/play"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/note"
+            style="@style/footerNote"
+            android:layout_toStartOf="@id/play"
+            android:layout_toEndOf="@id/previous" />
+
+    </RelativeLayout>
+
+    <com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+        android:id="@+id/imageView"
+        android:layout_above="@id/footer"
+        android:layout_below="@id/rotationSliderPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</RelativeLayout>

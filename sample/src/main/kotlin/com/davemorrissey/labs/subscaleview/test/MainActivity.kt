@@ -15,6 +15,7 @@ import com.davemorrissey.labs.subscaleview.test.eventhandling.EventHandlingActiv
 import com.davemorrissey.labs.subscaleview.test.eventhandlingadvanced.AdvancedEventHandlingActivity
 import com.davemorrissey.labs.subscaleview.test.extension.ExtensionActivity
 import com.davemorrissey.labs.subscaleview.test.imagedisplay.ImageDisplayActivity
+import com.davemorrissey.labs.subscaleview.test.rotationfilter.RotationFilterActivity
 import com.davemorrissey.labs.subscaleview.test.viewpager.ViewPagerActivity
 
 class MainActivity : AppCompatActivity() {
@@ -55,6 +56,9 @@ class MainActivity : AppCompatActivity() {
         }
         binding.configuration.setOnClickListener {
             startActivity(ConfigurationActivity::class.java)
+        }
+        binding.rotationFilter.setOnClickListener {
+            startActivity(RotationFilterActivity::class.java)
         }
         binding.github.setOnClickListener {
             openGitHub()

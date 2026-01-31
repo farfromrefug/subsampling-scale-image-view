@@ -219,7 +219,7 @@ public class SubsamplingScaleImageView extends View {
     // Source image dimensions and orientation - dimensions relate to the unrotated image
     private int sWidth;
     private int sHeight;
-    private ImageRotation imageRotation = ImageRotation.ROTATION_0;
+    private float imageRotation = 0f;
     // Min scale allowed (prevent infinite zoom)
     private float minScale = minScale();
     private Rect sRegion;
@@ -262,6 +262,8 @@ public class SubsamplingScaleImageView extends View {
     private Paint debugTextPaint;
     private Paint debugLinePaint;
     private Paint tileBgPaint;
+    // ColorFilter for bitmap drawing
+    private android.graphics.ColorFilter colorFilter;
     // Volatile fields used to reduce object creation
     private ScaleAndTranslate satTemp;
     private Matrix matrix;
@@ -1027,19 +1029,38 @@ public class SubsamplingScaleImageView extends View {
                                 matrix = new Matrix();
                             }
                             matrix.reset();
-                            setMatrixArray(srcArray, 0, 0, tile.bitmap.getWidth(), 0, tile.bitmap.getWidth(), tile.bitmap.getHeight(), 0, tile.bitmap.getHeight());
-
-                            switch (getImageRotation()) {
-                                case ROTATION_0 ->
-                                        setMatrixArray(dstArray, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom);
-                                case ROTATION_90 ->
-                                        setMatrixArray(dstArray, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top);
-                                case ROTATION_180 ->
-                                        setMatrixArray(dstArray, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top);
-                                case ROTATION_270 ->
-                                        setMatrixArray(dstArray, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom);
-                            }
-                            matrix.setPolyToPoly(srcArray, 0, dstArray, 0, 4);
+                            
+                            float rotation = getImageRotation();
+                            
+                            // Tiles need to follow the same transformation as the non-tiled image:
+                            // 1. Scale
+                            // 2. Rotate around center
+                            // 3. Translate by vTranslate
+                            //
+                            // tile.sRect gives us the position in source coordinates (0,0 to sWidth,sHeight)
+                            // We need to place the tile at its source position, then apply rotation, then translate
+                            
+                            // Scale factors for the tile bitmap
+                            float tileScaleX = (float)(tile.vRect.right - tile.vRect.left) / tile.bitmap.getWidth();
+                            float tileScaleY = (float)(tile.vRect.bottom - tile.vRect.top) / tile.bitmap.getHeight();
+                            
+                            // Step 1: Scale the tile
+                            matrix.postScale(tileScaleX, tileScaleY);
+                            
+                            // Step 2: Position the tile at its source location (before rotation and vTranslate)
+                            // tile.sRect is in source coordinates, convert to scaled coordinates
+                            float tileX = tile.sRect.left * scale;
+                            float tileY = tile.sRect.top * scale;
+                            matrix.postTranslate(tileX, tileY);
+                            
+                            // Step 3: Rotate around the center of the full scaled image (same as non-tiled)
+                            float scaledWidth = scale * sWidth;
+                            float scaledHeight = scale * sHeight;
+                            matrix.postRotate(rotation, scaledWidth / 2f, scaledHeight / 2f);
+                            
+                            // Step 4: Translate by vTranslate (same as non-tiled)
+                            matrix.postTranslate(vTranslate.x, vTranslate.y);
+                            
                             canvas.drawBitmap(tile.bitmap, matrix, bitmapPaint);
                             if (debug) {
                                 canvas.drawRect(tile.vRect, debugLinePaint);
@@ -1062,15 +1083,26 @@ public class SubsamplingScaleImageView extends View {
                 matrix = new Matrix();
             }
             matrix.reset();
+            
+            // For rotation, we need to:
+            // 1. Scale the image
+            // 2. Rotate around the center of the scaled image
+            // 3. Translate to the final position
+            
+            float scaledWidth = scale * sWidth;
+            float scaledHeight = scale * sHeight;
+            
+            // First scale
             matrix.postScale(xScale, yScale);
-            matrix.postRotate(getImageRotation().getRotation());
+            
+            // Then rotate around center of the scaled image
+            matrix.postRotate(getImageRotation(), scaledWidth / 2f, scaledHeight / 2f);
+            
+            // Calculate where to position the image
+            // The rotated image needs to be centered at vTranslate position
+            // After rotation around center, the center point is at (scaledWidth/2, scaledHeight/2)
+            // We want it at vTranslate, so translate by vTranslate - center
             matrix.postTranslate(vTranslate.x, vTranslate.y);
-
-            switch (getImageRotation()) {
-                case ROTATION_90 -> matrix.postTranslate(scale * sHeight, 0);
-                case ROTATION_180 -> matrix.postTranslate(scale * sWidth, scale * sHeight);
-                case ROTATION_270 -> matrix.postTranslate(0, scale * sWidth);
-            }
 
             if (tileBgPaint != null) {
                 if (sRect == null) {
@@ -1202,6 +1234,10 @@ public class SubsamplingScaleImageView extends View {
             bitmapPaint.setAntiAlias(true);
             bitmapPaint.setFilterBitmap(true);
             bitmapPaint.setDither(true);
+            // Apply color filter if one was set before paint creation
+            if (colorFilter != null) {
+                bitmapPaint.setColorFilter(colorFilter);
+            }
         }
         if ((debugTextPaint == null || debugLinePaint == null) && debug) {
             debugTextPaint = new Paint();
@@ -1294,11 +1330,76 @@ public class SubsamplingScaleImageView extends View {
      * Determine whether tile is visible.
      */
     private boolean tileVisible(Tile tile) {
-        float sVisLeft = viewToSourceX(0),
-                sVisRight = viewToSourceX(getWidth()),
-                sVisTop = viewToSourceY(0),
-                sVisBottom = viewToSourceY(getHeight());
-        return !(sVisLeft > tile.sRect.right || tile.sRect.left > sVisRight || sVisTop > tile.sRect.bottom || tile.sRect.top > sVisBottom);
+        float rotation = getImageRotation();
+        
+        if (rotation == 0f) {
+            // No rotation - simple axis-aligned check
+            float sVisLeft = viewToSourceX(0);
+            float sVisRight = viewToSourceX(getWidth());
+            float sVisTop = viewToSourceY(0);
+            float sVisBottom = viewToSourceY(getHeight());
+            return !(sVisLeft > tile.sRect.right || tile.sRect.left > sVisRight || 
+                     sVisTop > tile.sRect.bottom || tile.sRect.top > sVisBottom);
+        } else {
+            // With rotation, be more conservative
+            // The visible area in source space is a rotated rectangle
+            // For simplicity, expand the check area to avoid missing tiles
+            
+            // Get the four corners of the view in view coordinates
+            float[] viewCorners = new float[] {
+                0, 0,                    // top-left
+                getWidth(), 0,           // top-right  
+                getWidth(), getHeight(), // bottom-right
+                0, getHeight()           // bottom-left
+            };
+            
+            // Convert to source coordinates accounting for rotation
+            // We need the inverse transformation: inverse(rotate -> scale -> translate)
+            // Which is: inverse translate -> inverse scale -> inverse rotate
+            
+            // For now, use a conservative bounding box approach:
+            // Find min/max of all corners after transformation
+            float minSx = Float.MAX_VALUE, maxSx = Float.MIN_VALUE;
+            float minSy = Float.MAX_VALUE, maxSy = Float.MIN_VALUE;
+            
+            // Transform each corner through inverse of the rendering transformation
+            Matrix inverseMatrix = new Matrix();
+            Matrix renderMatrix = new Matrix();
+            
+            // Rendering transformation (from draw code):
+            // 1. Scale
+            // 2. Rotate around center
+            // 3. Translate by vTranslate
+            float scaledWidth = scale * sWidth;
+            float scaledHeight = scale * sHeight;
+            renderMatrix.postScale(scale, scale);
+            renderMatrix.postRotate(rotation, scaledWidth / 2f, scaledHeight / 2f);
+            renderMatrix.postTranslate(vTranslate.x, vTranslate.y);
+            
+            // Invert it
+            if (!renderMatrix.invert(inverseMatrix)) {
+                // Matrix not invertible, fall back to conservative approach
+                return true;
+            }
+            
+            // Transform all view corners to source space
+            float[] sourceCorners = new float[8];
+            inverseMatrix.mapPoints(sourceCorners, viewCorners);
+            
+            // Find bounding box in source space
+            for (int i = 0; i < 4; i++) {
+                float sx = sourceCorners[i * 2];
+                float sy = sourceCorners[i * 2 + 1];
+                minSx = Math.min(minSx, sx);
+                maxSx = Math.max(maxSx, sx);
+                minSy = Math.min(minSy, sy);
+                maxSy = Math.max(maxSy, sy);
+            }
+            
+            // Check if tile intersects this bounding box
+            return !(minSx > tile.sRect.right || tile.sRect.left > maxSx || 
+                     minSy > tile.sRect.bottom || tile.sRect.top > maxSy);
+        }
     }
 
     /**
@@ -1320,11 +1421,69 @@ public class SubsamplingScaleImageView extends View {
             sPendingCenter = null;
             pendingScale = null;
             fitToBounds(true);
+            constrainPanWithRotation();
             refreshRequiredTiles(true);
         }
 
         // On first display of base image set up position, and in other cases make sure scale is correct.
         fitToBounds(false);
+        constrainPanWithRotation();
+    }
+    
+    /**
+     * Apply pan constraints based on rotated image bounds.
+     * Called after fitToBounds to add rotation-aware pan limits without affecting centering.
+     * Only applies when zoomed in - at minScale, fitToBounds handles centering correctly.
+     */
+    private void constrainPanWithRotation() {
+        if (vTranslate == null || panLimit == PAN_LIMIT_OUTSIDE) {
+            return;
+        }
+        
+        float rotation = getImageRotation();
+        if (rotation == 0f) {
+            // No rotation, fitToBounds already handled it correctly
+            return;
+        }
+        
+        // Don't apply rotation-based constraints at minScale - it breaks centering
+        // At minScale, vTranslate is used to center the image and fitToBounds handles it correctly
+        // Only apply constraints when zoomed in (scale > minScale)
+        float currentMinScale = minScale();
+        if (scale <= currentMinScale * 1.01f) {  // Small tolerance for floating point comparison
+            return;
+        }
+        
+        // With rotation, need to ensure we don't pan beyond the rotated image bounds
+        PointF rotatedBounds = getRotatedBounds(rotation);
+        float rotatedScaleWidth = scale * rotatedBounds.x;
+        float rotatedScaleHeight = scale * rotatedBounds.y;
+        
+        boolean extra = panLimit == PAN_LIMIT_INSIDE;
+        float extraLeft = extra ? vExtraSpaceLeft : 0;
+        float extraRight = extra ? vExtraSpaceRight : 0;
+        float extraTop = extra ? vExtraSpaceTop : 0;
+        float extraBottom = extra ? vExtraSpaceBottom : 0;
+        
+        // Calculate pan limits based on rotated bounds
+        float minX, maxX, minY, maxY;
+        
+        if (panLimit == PAN_LIMIT_CENTER) {
+            minX = getWidth() / 2 - rotatedScaleWidth;
+            maxX = getWidth() / 2;
+            minY = getHeight() / 2 - rotatedScaleHeight;
+            maxY = getHeight() / 2;
+        } else {
+            // PAN_LIMIT_INSIDE or default
+            minX = getWidth() - rotatedScaleWidth - extraRight;
+            maxX = extraLeft;
+            minY = getHeight() - rotatedScaleHeight - extraBottom;
+            maxY = extraTop;
+        }
+        
+        // Apply constraints
+        vTranslate.x = Math.max(minX, Math.min(maxX, vTranslate.x));
+        vTranslate.y = Math.max(minY, Math.min(maxY, vTranslate.y));
     }
 
     /**
@@ -1385,6 +1544,9 @@ public class SubsamplingScaleImageView extends View {
 
         PointF vTranslate = sat.vTranslate;
         float scale = limitedScale(sat.scale);
+        
+        // For centering calculations, use actual dimensions (not rotated)
+        // This preserves the original auto-centering behavior
         float scaleWidth = scale * getEffectiveSWidth();
         float scaleHeight = scale * getEffectiveSHeight();
 
@@ -1808,29 +1970,43 @@ public class SubsamplingScaleImageView extends View {
     }
 
     /**
-     * Get source width taking rotation into account.
+     * Get source width (always returns actual width, not affected by rotation for dimension swapping).
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSWidth() {
-        ImageRotation rotation = getImageRotation();
-        if (rotation == ImageRotation.ROTATION_90 || rotation == ImageRotation.ROTATION_270) {
-            return sHeight;
-        } else {
-            return sWidth;
-        }
+        return sWidth;
     }
 
     /**
-     * Get source height taking rotation into account.
+     * Get source height (always returns actual height, not affected by rotation for dimension swapping).
      */
     @SuppressWarnings("SuspiciousNameCombination")
     private int getEffectiveSHeight() {
-        ImageRotation rotation = getImageRotation();
-        if (rotation == ImageRotation.ROTATION_90 || rotation == ImageRotation.ROTATION_270) {
-            return sWidth;
-        } else {
-            return sHeight;
+        return sHeight;
+    }
+
+    /**
+     * Calculate the rotated bounding box dimensions for a given rotation angle.
+     * This is used to compute proper scale factors that account for rotation.
+     */
+    private PointF getRotatedBounds(float rotationDegrees) {
+        float dW = sWidth;
+        float dH = sHeight;
+        
+        if (dW <= 0 || dH <= 0) {
+            return new PointF(dW, dH);
         }
+        
+        // Calculate rotation in radians
+        double rotRad = Math.toRadians(rotationDegrees);
+        double cos = Math.abs(Math.cos(rotRad));
+        double sin = Math.abs(Math.sin(rotRad));
+        
+        // Calculate rotated bounding box dimensions
+        float rotatedWidth = (float)(dW * cos + dH * sin);
+        float rotatedHeight = (float)(dH * cos + dW * sin);
+        
+        return new PointF(rotatedWidth, rotatedHeight);
     }
 
     /**
@@ -1840,30 +2016,130 @@ public class SubsamplingScaleImageView extends View {
     @SuppressWarnings("SuspiciousNameCombination")
     @AnyThread
     private void fileSRect(Rect sRect, Rect target) {
-        @SuppressLint("WrongThread") ImageRotation rotation = getImageRotation();
+        @SuppressLint("WrongThread") float rotationDegrees = normalizeRotation(getImageRotation());
 
-        switch (rotation) {
-            case ROTATION_0 ->
-                    target.set(sRect);
-            case ROTATION_90 ->
-                    target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left);
-            case ROTATION_180 ->
-                    target.set(sWidth - sRect.right, sHeight - sRect.bottom, sWidth - sRect.left, sHeight - sRect.top);
-            case ROTATION_270 ->
-                    target.set(sWidth - sRect.bottom, sRect.left, sWidth - sRect.top, sRect.right);
-        }
+        // Only apply special transformations for exact 90-degree rotations
+//        if (Math.abs(rotationDegrees) < 0.01f) {
+//            // 0 degrees
+//            target.set(sRect);
+//        } else if (Math.abs(rotationDegrees - 90) < 0.01f) {
+//            // 90 degrees
+//            target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left);
+//        } else if (Math.abs(rotationDegrees - 180) < 0.01f) {
+//            // 180 degrees
+//            target.set(sWidth - sRect.right, sHeight - sRect.bottom, sWidth - sRect.left, sHeight - sRect.top);
+//        } else if (Math.abs(rotationDegrees - 270) < 0.01f) {
+//            // 270 degrees
+//            target.set(sWidth - sRect.bottom, sRect.left, sWidth - sRect.top, sRect.right);
+//        } else {
+            // For arbitrary angles, use the source rect as-is
+            // The rotation will be applied during rendering
+            target.set(sRect);
+//        }
     }
 
-    public ImageRotation getImageRotation() {
+    /**
+     * Normalize rotation to 0-360 range.
+     * @param rotation The rotation angle in degrees
+     * @return Normalized rotation in [0, 360) range
+     */
+    private float normalizeRotation(float rotation) {
+        float normalized = rotation % 360;
+        if (normalized < 0) normalized += 360;
+        return normalized;
+    }
+
+    public float getImageRotation() {
         return imageRotation;
     }
 
-    public void setImageRotation(ImageRotation rotation) {
+    public void setImageRotation(float rotation) {
+        // Validate input
+        if (!Float.isFinite(rotation)) {
+            throw new IllegalArgumentException("Rotation must be a finite value");
+        }
+
+        float oldMinScale = minScale();
+        float oldRotation = this.imageRotation;
         this.imageRotation = rotation;
 
-        reset(false);
+        // Only do expensive reset if image hasn't loaded yet
+        if (!readySent) {
+            // Image not ready yet, do full reset to set up properly
+            reset(false);
+            invalidate();
+            requestLayout();
+        } else {
+            if (tileMap != null) {
+                for (Map.Entry<Integer, List<Tile>> tileMapEntry : tileMap.entrySet()) {
+                    for (Tile tile : tileMapEntry.getValue()) {
+                        fileSRect(tile.sRect, tile.fileSRect);
+                    }
+                }
+            }
+
+            if (scale == oldMinScale) {
+                // Image is already loaded, just update the view
+                // Recalculate scale if it would change minScale
+                PointF oldBounds = getRotatedBounds(oldRotation);
+                PointF newBounds = getRotatedBounds(rotation);
+
+                // Check if the rotation change affects the required minimum scale
+                boolean boundsChanged = Math.abs(oldBounds.x - newBounds.x) > 0.01f ||
+                        Math.abs(oldBounds.y - newBounds.y) > 0.01f;
+
+                float newMinScale = minScale();
+                if (boundsChanged && newMinScale != oldMinScale) {
+                    // We're at or near minScale and bounds changed, need to adjust scale
+                    // Scale is now below new minimum, adjust it
+                    scale = newMinScale;
+
+                    // Recalculate position to keep image centered
+                    if (vTranslate != null) {
+                        vTranslate.set(vTranslateForSCenter(sWidth / 2f, sHeight / 2f, scale));
+                    }
+                    // Refresh tiles for new scale/rotation if needed
+                    refreshRequiredTiles(true);
+                }
+            }
+            
+            invalidate();
+            requestLayout();
+        }
+    }
+
+    /**
+     * Set the image rotation using the ImageRotation enum (backward compatibility).
+     * For rotation animation, use setImageRotation(float) instead.
+     * 
+     * @param rotation The rotation to apply.
+     */
+    public void setImageRotation(@NonNull ImageRotation rotation) {
+        setImageRotation((float) rotation.getRotation());
+    }
+
+    /**
+     * Set a color filter for the image, similar to ImageView's setColorFilter.
+     * This will be applied to both tiled and non-tiled rendering.
+     * 
+     * @param colorFilter The color filter to apply, or null to remove any existing filter.
+     */
+    public void setColorFilter(@Nullable android.graphics.ColorFilter colorFilter) {
+        this.colorFilter = colorFilter;
+        if (bitmapPaint != null) {
+            bitmapPaint.setColorFilter(colorFilter);
+        }
         invalidate();
-        requestLayout();
+    }
+
+    /**
+     * Returns the current color filter, or null if none is set.
+     * 
+     * @return The current color filter.
+     */
+    @Nullable
+    public android.graphics.ColorFilter getColorFilter() {
+        return colorFilter;
     }
 
     /**
@@ -2137,24 +2413,28 @@ public class SubsamplingScaleImageView extends View {
 
         int vPadding = getPaddingBottom() + getPaddingTop() + vExtra;
         int hPadding = getPaddingLeft() + getPaddingRight() + hExtra;
-        int sWidth = getEffectiveSWidth();
-        int sHeight = getEffectiveSHeight();
+        
+        // Get the rotated bounding box dimensions for proper scale calculation
+        PointF rotatedBounds = getRotatedBounds(getImageRotation());
+        float rotatedWidth = rotatedBounds.x;
+        float rotatedHeight = rotatedBounds.y;
+        
         switch (minimumScaleType) {
             case SCALE_TYPE_CENTER_INSIDE:
             default:
-                return Math.min((getWidth() - hPadding) / (float) sWidth, (getHeight() - vPadding) / (float) sHeight);
+                return Math.min((getWidth() - hPadding) / rotatedWidth, (getHeight() - vPadding) / rotatedHeight);
             case SCALE_TYPE_CENTER_CROP:
-                return Math.max((getWidth() - hPadding) / (float) sWidth, (getHeight() - vPadding) / (float) sHeight);
+                return Math.max((getWidth() - hPadding) / rotatedWidth, (getHeight() - vPadding) / rotatedHeight);
             case SCALE_TYPE_FIT_WIDTH:
-                return (getWidth() - hPadding) / (float) sWidth;
+                return (getWidth() - hPadding) / rotatedWidth;
             case SCALE_TYPE_FIT_HEIGHT:
-                return (getHeight() - vPadding) / (float) sHeight;
+                return (getHeight() - vPadding) / rotatedHeight;
             case SCALE_TYPE_ORIGINAL_SIZE:
                 return 1;
             case SCALE_TYPE_SMART_FIT:
                 // Always ensure the full image is visible by using the minimum scale
                 // that fits both dimensions within the view, just like CENTER_INSIDE
-                return Math.min((getWidth() - hPadding) / (float) sWidth, (getHeight() - vPadding) / (float) sHeight);
+                return Math.min((getWidth() - hPadding) / rotatedWidth, (getHeight() - vPadding) / rotatedHeight);
             case SCALE_TYPE_CUSTOM:
                 return minScale;
         }

@@ -16,6 +16,7 @@ The view optionally uses subsampling and tiles to support very large images - a 
 * [Event handling](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/09.-Events)
 * [Animation](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/08.-Animation)
 * [Extension](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/10.-Extension)
+* **[Float rotation and ColorFilter guide](FLOAT_ROTATION_AND_COLOR_FILTER.md)** ⭐ NEW
 
 ## Features
 
@@ -23,7 +24,8 @@ The view optionally uses subsampling and tiles to support very large images - a 
 
 * Display images from assets, resources, the file system or bitmaps
 * Automatically rotate images from the file system (e.g. the camera or gallery) according to EXIF
-* Manually rotate images in 90° increments
+* **NEW: Rotate images at arbitrary angles (supports float degrees for smooth animation)**
+* **NEW: Apply color filters (tinting, grayscale, sepia, etc.) like ImageView**
 * Display a region of the source image
 * Use a preview image while large images load
 * Swap images at runtime

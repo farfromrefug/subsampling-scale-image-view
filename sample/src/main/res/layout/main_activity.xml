@@ -79,6 +79,13 @@
 
             <View style="@style/indexDivider" />
 
+            <TextView
+                android:id="@+id/rotationFilter"
+                style="@style/indexLink"
+                android:text="@string/rotationfilter.link" />
+
+            <View style="@style/indexDivider" />
+
         </LinearLayout>
 
         <Button
