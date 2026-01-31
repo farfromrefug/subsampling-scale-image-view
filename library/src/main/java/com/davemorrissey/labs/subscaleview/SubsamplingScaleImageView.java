@@ -1032,48 +1032,29 @@ public class SubsamplingScaleImageView extends View {
                             
                             float rotation = getImageRotation();
                             
-                            // For exact 90-degree rotations, use the original poly-to-poly approach for precision
-                            float normalizedRotation = normalizeRotation(rotation);
+                            // For tile rendering with rotation, we need to rotate around the full image center
+                            // not the tile center, to ensure tiles align correctly
                             
-//                            boolean isExact90Deg = (Math.abs(normalizedRotation) < 0.01f ||
-//                                                   Math.abs(normalizedRotation - 90) < 0.01f ||
-//                                                   Math.abs(normalizedRotation - 180) < 0.01f ||
-//                                                   Math.abs(normalizedRotation - 270) < 0.01f);
+                            // Scale factors to convert tile bitmap to view coordinates
+                            float scaleX = (float)(tile.vRect.right - tile.vRect.left) / tile.bitmap.getWidth();
+                            float scaleY = (float)(tile.vRect.bottom - tile.vRect.top) / tile.bitmap.getHeight();
                             
-//                            if (isExact90Deg) {
-//                                // Use original poly-to-poly for exact 90-degree rotations
-//                                setMatrixArray(srcArray, 0, 0, tile.bitmap.getWidth(), 0, tile.bitmap.getWidth(), tile.bitmap.getHeight(), 0, tile.bitmap.getHeight());
-//
-//                                if (Math.abs(normalizedRotation) < 0.01f) {
-//                                    // 0 degrees
-//                                    setMatrixArray(dstArray, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom);
-//                                } else if (Math.abs(normalizedRotation - 90) < 0.01f) {
-//                                    // 90 degrees
-//                                    setMatrixArray(dstArray, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top);
-//                                } else if (Math.abs(normalizedRotation - 180) < 0.01f) {
-//                                    // 180 degrees
-//                                    setMatrixArray(dstArray, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top);
-//                                } else {
-//                                    // 270 degrees
-//                                    setMatrixArray(dstArray, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom);
-//                                }
-//                                matrix.setPolyToPoly(srcArray, 0, dstArray, 0, 4);
-//                            } else {
-                                // For arbitrary angles, apply matrix transformations
-                                // Scale the tile bitmap to match the view scale
-                                float scaleX = (float)(tile.vRect.right - tile.vRect.left) / tile.bitmap.getWidth();
-                                float scaleY = (float)(tile.vRect.bottom - tile.vRect.top) / tile.bitmap.getHeight();
-                                matrix.postScale(scaleX, scaleY);
-                                
-                                // Rotate around the bitmap center
-                                matrix.postRotate(rotation, tile.bitmap.getWidth() * scaleX / 2f, tile.bitmap.getHeight() * scaleY / 2f);
-                                
-                                // Translate to the tile position (center of vRect)
-                                float tileCenterX = (tile.vRect.left + tile.vRect.right) / 2f;
-                                float tileCenterY = (tile.vRect.top + tile.vRect.bottom) / 2f;
-                                matrix.postTranslate(tileCenterX - tile.bitmap.getWidth() * scaleX / 2f, 
-                                                    tileCenterY - tile.bitmap.getHeight() * scaleY / 2f);
-//                            }
+                            // Scale the tile bitmap
+                            matrix.postScale(scaleX, scaleY);
+                            
+                            // Calculate the center of the full scaled image in view coordinates
+                            float imageCenterX = vTranslate.x + (scale * sWidth) / 2f;
+                            float imageCenterY = vTranslate.y + (scale * sHeight) / 2f;
+                            
+                            // Calculate where the top-left corner of this tile should be before rotation
+                            float tileX = tile.vRect.left;
+                            float tileY = tile.vRect.top;
+                            
+                            // Translate to position the tile at its location
+                            matrix.postTranslate(tileX, tileY);
+                            
+                            // Now rotate around the image center
+                            matrix.postRotate(rotation, imageCenterX, imageCenterY);
                             
                             canvas.drawBitmap(tile.bitmap, matrix, bitmapPaint);
                             if (debug) {
@@ -1435,8 +1416,11 @@ public class SubsamplingScaleImageView extends View {
 
         PointF vTranslate = sat.vTranslate;
         float scale = limitedScale(sat.scale);
-        float scaleWidth = scale * getEffectiveSWidth();
-        float scaleHeight = scale * getEffectiveSHeight();
+        
+        // Use rotated bounding box dimensions for pan limits
+        PointF rotatedBounds = getRotatedBounds(getImageRotation());
+        float scaleWidth = scale * rotatedBounds.x;
+        float scaleHeight = scale * rotatedBounds.y;
 
         boolean extra = panLimit == PAN_LIMIT_INSIDE;
         float extraLeft = extra ? vExtraSpaceLeft : 0;
