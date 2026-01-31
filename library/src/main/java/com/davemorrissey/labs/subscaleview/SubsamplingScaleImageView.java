@@ -2010,23 +2010,23 @@ public class SubsamplingScaleImageView extends View {
         @SuppressLint("WrongThread") float rotationDegrees = normalizeRotation(getImageRotation());
 
         // Only apply special transformations for exact 90-degree rotations
-        if (Math.abs(rotationDegrees) < 0.01f) {
-            // 0 degrees
-            target.set(sRect);
-        } else if (Math.abs(rotationDegrees - 90) < 0.01f) {
-            // 90 degrees
-            target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left);
-        } else if (Math.abs(rotationDegrees - 180) < 0.01f) {
-            // 180 degrees
-            target.set(sWidth - sRect.right, sHeight - sRect.bottom, sWidth - sRect.left, sHeight - sRect.top);
-        } else if (Math.abs(rotationDegrees - 270) < 0.01f) {
-            // 270 degrees
-            target.set(sWidth - sRect.bottom, sRect.left, sWidth - sRect.top, sRect.right);
-        } else {
+//        if (Math.abs(rotationDegrees) < 0.01f) {
+//            // 0 degrees
+//            target.set(sRect);
+//        } else if (Math.abs(rotationDegrees - 90) < 0.01f) {
+//            // 90 degrees
+//            target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left);
+//        } else if (Math.abs(rotationDegrees - 180) < 0.01f) {
+//            // 180 degrees
+//            target.set(sWidth - sRect.right, sHeight - sRect.bottom, sWidth - sRect.left, sHeight - sRect.top);
+//        } else if (Math.abs(rotationDegrees - 270) < 0.01f) {
+//            // 270 degrees
+//            target.set(sWidth - sRect.bottom, sRect.left, sWidth - sRect.top, sRect.right);
+//        } else {
             // For arbitrary angles, use the source rect as-is
             // The rotation will be applied during rendering
             target.set(sRect);
-        }
+//        }
     }
 
     /**
