@@ -1032,28 +1032,30 @@ public class SubsamplingScaleImageView extends View {
                             
                             float rotation = getImageRotation();
                             
-                            // For tile rendering with rotation, we need to rotate around the full image center
-                            // not the tile center, to ensure tiles align correctly
+                            // Tiles need to be rendered in the same coordinate system as the non-tiled image.
+                            // Each tile represents a portion of the source image at (tile.sRect) in source coordinates.
+                            // We need to:
+                            // 1. Position the tile at its correct location in the unrotated, scaled image
+                            // 2. Apply the same rotation around the image center as the non-tiled rendering
                             
-                            // Scale factors to convert tile bitmap to view coordinates
-                            float scaleX = (float)(tile.vRect.right - tile.vRect.left) / tile.bitmap.getWidth();
-                            float scaleY = (float)(tile.vRect.bottom - tile.vRect.top) / tile.bitmap.getHeight();
+                            // Calculate scale factors for this tile
+                            float tileScaleX = (float)(tile.vRect.right - tile.vRect.left) / tile.bitmap.getWidth();
+                            float tileScaleY = (float)(tile.vRect.bottom - tile.vRect.top) / tile.bitmap.getHeight();
                             
-                            // Scale the tile bitmap
-                            matrix.postScale(scaleX, scaleY);
+                            // Scale the tile
+                            matrix.postScale(tileScaleX, tileScaleY);
                             
-                            // Calculate the center of the full scaled image in view coordinates
-                            float imageCenterX = vTranslate.x + (scale * sWidth) / 2f;
-                            float imageCenterY = vTranslate.y + (scale * sHeight) / 2f;
+                            // Position the tile at its location in the unrotated image
+                            // tile.vRect tells us where this tile should be in view coordinates (before rotation)
+                            matrix.postTranslate(tile.vRect.left, tile.vRect.top);
                             
-                            // Calculate where the top-left corner of this tile should be before rotation
-                            float tileX = tile.vRect.left;
-                            float tileY = tile.vRect.top;
+                            // Now apply rotation around the center of the full scaled image
+                            // This is the same center point used for non-tiled rendering
+                            float scaledWidth = scale * sWidth;
+                            float scaledHeight = scale * sHeight;
+                            float imageCenterX = vTranslate.x + scaledWidth / 2f;
+                            float imageCenterY = vTranslate.y + scaledHeight / 2f;
                             
-                            // Translate to position the tile at its location
-                            matrix.postTranslate(tileX, tileY);
-                            
-                            // Now rotate around the image center
                             matrix.postRotate(rotation, imageCenterX, imageCenterY);
                             
                             canvas.drawBitmap(tile.bitmap, matrix, bitmapPaint);
@@ -1417,10 +1419,10 @@ public class SubsamplingScaleImageView extends View {
         PointF vTranslate = sat.vTranslate;
         float scale = limitedScale(sat.scale);
         
-        // Use rotated bounding box dimensions for pan limits
-        PointF rotatedBounds = getRotatedBounds(getImageRotation());
-        float scaleWidth = scale * rotatedBounds.x;
-        float scaleHeight = scale * rotatedBounds.y;
+        // For centering calculations, use actual dimensions (not rotated)
+        // This preserves the original auto-centering behavior
+        float scaleWidth = scale * getEffectiveSWidth();
+        float scaleHeight = scale * getEffectiveSHeight();
 
         boolean extra = panLimit == PAN_LIMIT_INSIDE;
         float extraLeft = extra ? vExtraSpaceLeft : 0;
@@ -1458,6 +1460,33 @@ public class SubsamplingScaleImageView extends View {
 
         vTranslate.x = Math.min(vTranslate.x, maxTx);
         vTranslate.y = Math.min(vTranslate.y, maxTy);
+        
+        // Apply pan limits based on rotated bounds to prevent panning beyond edges
+        // when image is rotated. This constrains the final position without affecting centering.
+        if (getImageRotation() != 0f) {
+            PointF rotatedBounds = getRotatedBounds(getImageRotation());
+            float rotatedScaleWidth = scale * rotatedBounds.x;
+            float rotatedScaleHeight = scale * rotatedBounds.y;
+            
+            // Constrain panning to rotated bounds
+            if (panLimit != PAN_LIMIT_OUTSIDE) {
+                // Ensure we don't pan beyond the rotated image bounds
+                float minX = getWidth() - rotatedScaleWidth - extraRight;
+                float minY = getHeight() - rotatedScaleHeight - extraBottom;
+                float maxX = extraLeft;
+                float maxY = extraTop;
+                
+                if (panLimit == PAN_LIMIT_CENTER) {
+                    minX = getWidth() / 2 - rotatedScaleWidth;
+                    minY = getHeight() / 2 - rotatedScaleHeight;
+                    maxX = getWidth() / 2;
+                    maxY = getHeight() / 2;
+                }
+                
+                vTranslate.x = Math.max(minX, Math.min(maxX, vTranslate.x));
+                vTranslate.y = Math.max(minY, Math.min(maxY, vTranslate.y));
+            }
+        }
 
         sat.scale = scale;
     }
